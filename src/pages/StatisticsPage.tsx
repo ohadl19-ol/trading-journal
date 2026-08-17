@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { TrendingUp, TrendingDown, Percent, Target, Award, AlertTriangle, Wallet } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { DateRangeFilterBar } from '@/components/DateRangeFilterBar'
 import { computeStatistics, computeEquitySummary } from '@/lib/statistics'
 import { formatCurrency, formatPercentage } from '@/lib/calculations'
 import { filterPositionsByDate } from '@/lib/dateFilter'
@@ -11,9 +12,10 @@ interface StatisticsPageProps {
   positions: Position[]
   initialCapital: number
   filter: DateRangeFilter
+  onFilterChange: (filter: DateRangeFilter) => void
 }
 
-export function StatisticsPage({ positions, initialCapital, filter }: StatisticsPageProps) {
+export function StatisticsPage({ positions, initialCapital, filter, onFilterChange }: StatisticsPageProps) {
   const filtered = React.useMemo(() => filterPositionsByDate(positions, filter), [positions, filter])
   const stats = React.useMemo(() => computeStatistics(filtered, initialCapital), [filtered, initialCapital])
   // שווי החשבון האמיתי מחושב תמיד על כל ההיסטוריה (לא מסונן), כולל רווח/הפסד לא ממומש
@@ -24,6 +26,8 @@ export function StatisticsPage({ positions, initialCapital, filter }: Statistics
 
   return (
     <div className="space-y-4">
+      <DateRangeFilterBar filter={filter} onFilterChange={onFilterChange} />
+
       <div className="rounded-xl border border-border bg-surface p-3 text-xs text-text-muted">
         כרטיסי ההון למעלה (הון התחלתי / רווח־הפסד ממומש / לא ממומש / שווי נוכחי / אחוזים) משקפים תמיד את
         <b className="text-text"> מצב החשבון האמיתי על פני כל ההיסטוריה</b>, ללא קשר לסינון ביומן. שאר הכרטיסים

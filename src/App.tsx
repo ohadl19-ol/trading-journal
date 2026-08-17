@@ -93,7 +93,12 @@ function AppShell() {
           />
         )}
         {tab === 'statistics' && (
-          <StatisticsPage positions={positions} initialCapital={settings.initialCapital} filter={filter} />
+          <StatisticsPage
+            positions={positions}
+            initialCapital={settings.initialCapital}
+            filter={filter}
+            onFilterChange={setFilter}
+          />
         )}
         {tab === 'patterns' && <PatternsGuidePage />}
         {tab === 'settings' && <SettingsPage settings={settings} onSave={handleSaveSettings} />}

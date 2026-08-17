@@ -8,8 +8,8 @@ const KEYS = {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   webAppUrl: '',
-  initialCapital: 4455,
-  defaultAccountBalance: 4455,
+  initialCapital: 4455.21,
+  defaultAccountBalance: 4455.21,
   defaultRiskAmount: 50,
 }
 
