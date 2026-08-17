@@ -1,0 +1,33 @@
+{
+  "name": "יומן מסחר",
+  "short_name": "יומן מסחר",
+  "description": "ניהול פוזיציות, יומן עסקאות וסטטיסטיקה מסונכרנים עם Google Sheets",
+  "start_url": "/trading-journal/",
+  "scope": "/trading-journal/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b0f14",
+  "theme_color": "#0b0f14",
+  "lang": "he",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "/trading-journal/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/trading-journal/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/trading-journal/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
