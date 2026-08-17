@@ -1,0 +1,154 @@
+import * as React from 'react'
+import { TrendingUp, TrendingDown, Percent, Target, Award, AlertTriangle } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { computeStatistics } from '@/lib/statistics'
+import { formatCurrency, formatPercentage } from '@/lib/calculations'
+import { filterPositionsByDate } from '@/lib/dateFilter'
+import type { DateRangeFilter, Position } from '@/types'
+import { cn } from '@/lib/utils'
+
+interface StatisticsPageProps {
+  positions: Position[]
+  initialCapital: number
+  filter: DateRangeFilter
+}
+
+export function StatisticsPage({ positions, initialCapital, filter }: StatisticsPageProps) {
+  const filtered = React.useMemo(() => filterPositionsByDate(positions, filter), [positions, filter])
+  const stats = React.useMemo(() => computeStatistics(filtered, initialCapital), [filtered, initialCapital])
+
+  const maxPatternAbs = Math.max(1, ...stats.patternBreakdown.map((p) => Math.abs(p.pnl)))
+  const maxCategoryAbs = Math.max(1, ...stats.categoryBreakdown.map((p) => Math.abs(p.pnl)))
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <StatCard
+          icon={<TrendingUp className="h-4 w-4" />}
+          label="הון התחלתי"
+          value={`$${formatCurrency(stats.initialCapital)}`}
+        />
+        <StatCard
+          icon={stats.totalRealizedPnl >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+          label="רווח/הפסד ממומש כולל"
+          value={`${stats.totalRealizedPnl >= 0 ? '+' : ''}$${formatCurrency(stats.totalRealizedPnl)}`}
+          valueClass={stats.totalRealizedPnl >= 0 ? 'text-win' : 'text-loss'}
+        />
+        <StatCard
+          icon={<Award className="h-4 w-4" />}
+          label="שווי נוכחי"
+          value={`$${formatCurrency(stats.currentEquity)}`}
+        />
+        <StatCard
+          icon={<Percent className="h-4 w-4" />}
+          label="רווח/הפסד באחוזים"
+          value={formatPercentage(stats.pnlPercentage * 100)}
+          valueClass={stats.pnlPercentage >= 0 ? 'text-win' : 'text-loss'}
+        />
+        <StatCard label="עסקאות מנצחות" value={stats.winCount.toString()} valueClass="text-win" />
+        <StatCard label="עסקאות מפסידות" value={stats.lossCount.toString()} valueClass="text-loss" />
+        <StatCard label="אחוז מנצחות" value={formatPercentage(stats.winRate * 100)} />
+        <StatCard label="אחוז מפסידות" value={formatPercentage(stats.lossRate * 100)} />
+        <StatCard label="ממוצע רווח לעסקה מנצחת" value={`$${formatCurrency(stats.avgWin)}`} valueClass="text-win" />
+        <StatCard label="ממוצע הפסד לעסקה מפסידה" value={`$${formatCurrency(stats.avgLoss)}`} valueClass="text-loss" />
+        <StatCard
+          icon={<Target className="h-4 w-4" />}
+          label="תוחלת לעסקה"
+          value={`$${formatCurrency(stats.expectancy)}`}
+          valueClass={stats.expectancy >= 0 ? 'text-win' : 'text-loss'}
+        />
+        <StatCard
+          icon={<AlertTriangle className="h-4 w-4" />}
+          label="עסקאות סגורות"
+          value={stats.closedTrades.length.toString()}
+        />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>פילוח לפי סוג הגרף (Pattern)</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {stats.patternBreakdown.length === 0 && (
+              <p className="text-sm text-text-muted">אין נתונים בטווח הנבחר</p>
+            )}
+            {stats.patternBreakdown.map((p) => (
+              <BreakdownRow key={p.name} name={p.name} pnl={p.pnl} count={p.count} maxAbs={maxPatternAbs} />
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>פילוח לפי קטגוריה/תגית</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {stats.categoryBreakdown.length === 0 && (
+              <p className="text-sm text-text-muted">אין נתונים בטווח הנבחר</p>
+            )}
+            {stats.categoryBreakdown.map((c) => (
+              <BreakdownRow key={c.name} name={c.name} pnl={c.pnl} count={c.count} maxAbs={maxCategoryAbs} />
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
+
+function StatCard({
+  icon,
+  label,
+  value,
+  valueClass,
+}: {
+  icon?: React.ReactNode
+  label: string
+  value: string
+  valueClass?: string
+}) {
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="flex items-center gap-1.5 text-xs text-text-muted">
+          {icon}
+          {label}
+        </div>
+        <div className={cn('mt-1 text-xl font-bold num-tabular', valueClass)}>{value}</div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function BreakdownRow({
+  name,
+  pnl,
+  count,
+  maxAbs,
+}: {
+  name: string
+  pnl: number
+  count: number
+  maxAbs: number
+}) {
+  const widthPct = Math.min(100, (Math.abs(pnl) / maxAbs) * 100)
+  return (
+    <div>
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-text">
+          {name} <span className="text-text-muted">({count})</span>
+        </span>
+        <span className={cn('num-tabular font-medium', pnl >= 0 ? 'text-win' : 'text-loss')}>
+          {pnl >= 0 ? '+' : ''}${formatCurrency(pnl)}
+        </span>
+      </div>
+      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
+        <div
+          className={cn('h-full rounded-full', pnl >= 0 ? 'bg-win' : 'bg-loss')}
+          style={{ width: `${widthPct}%` }}
+        />
+      </div>
+    </div>
+  )
+}

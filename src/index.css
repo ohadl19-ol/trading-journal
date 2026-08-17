@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Heebo", "Segoe UI", system-ui, sans-serif;
+
+  /* פלטת צבעים פיננסית - ניטרלי כהה עם דגשי ירוק/אדום */
+  --color-bg: #0b0f14;
+  --color-surface: #12181f;
+  --color-surface-2: #1a222b;
+  --color-border: #263340;
+  --color-text: #e6edf3;
+  --color-text-muted: #8b9bab;
+  --color-accent: #3b82f6;
+  --color-accent-fg: #ffffff;
+  --color-win: #22c55e;
+  --color-win-bg: #14291d;
+  --color-loss: #ef4444;
+  --color-loss-bg: #2b1616;
+  --color-warn: #f59e0b;
+  --color-warn-bg: #2b2213;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+  }
+  * {
+    border-color: var(--color-border);
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--color-bg);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-surface-2);
+    border-radius: 8px;
+  }
+}
+
+@layer utilities {
+  .num-tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
