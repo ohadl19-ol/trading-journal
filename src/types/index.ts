@@ -61,6 +61,7 @@ export interface Position {
   chartUrl: string // קישור צ'ארט הפוזיציה
   notes: string // הערות
   equity: number | null // שווי מצטבר (equity)
+  currentPrice: number | null // מחיר נוכחי (עדכון ידני, לחישוב רווח/הפסד לא ממומש בפוזיציה פתוחה)
 }
 
 // ==== לשונית "פעולות" ====

@@ -50,6 +50,7 @@ export interface UpdatePositionInput {
   setupReason?: string
   notes?: string
   chartUrl?: string
+  currentPrice?: number | null
 }
 
 function recalcEquity(positions: Position[], initialCapital: number): Position[] {
@@ -147,6 +148,7 @@ export function useTradingData(settings: AppSettings) {
         chartUrl: input.chartUrl,
         notes: '',
         equity: null,
+        currentPrice: null,
       }
 
       const newExecution: Execution = {
@@ -361,6 +363,7 @@ export function useTradingData(settings: AppSettings) {
         setupReason: input.setupReason ?? pos.setupReason,
         notes: input.notes ?? pos.notes,
         chartUrl: input.chartUrl ?? pos.chartUrl,
+        currentPrice: input.currentPrice !== undefined ? input.currentPrice : pos.currentPrice,
       }
 
       const nextPositions = positions.map((p) => (p.tradeId === pos.tradeId ? updatedPosition : p))
@@ -374,6 +377,7 @@ export function useTradingData(settings: AppSettings) {
         setupReason: input.setupReason,
         notes: input.notes,
         chartUrl: input.chartUrl,
+        currentPrice: input.currentPrice,
       })
       await refresh()
     },

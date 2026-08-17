@@ -17,7 +17,7 @@ var POSITIONS_HEADERS = [
   '% סיכון מהחשבון', 'יחס R/R מתוכנן', 'יעד 2R', 'יעד 3R', 'יתרת חשבון',
   'רווח/הפסד ממומש $', 'R ממומש', 'תוצאה (Outcome)', 'WIN/LOSS',
   'קטגוריה/תגית', 'תאריך סגירה', 'סיבת כניסה/סטאפ', 'קישור צ\'ארט הפוזיציה',
-  'הערות', 'שווי מצטבר (equity)',
+  'הערות', 'שווי מצטבר (equity)', 'מחיר נוכחי (לא ממומש)',
 ];
 
 // כותרות לשונית "פעולות"
@@ -231,6 +231,7 @@ function handleClose_(body) {
   updateCell_(sheet, rowIndex, 'קטגוריה/תגית', body.category || '');
   updateCell_(sheet, rowIndex, 'תאריך סגירה', now);
   updateCell_(sheet, rowIndex, 'גודל פוזיציה נוכחי $', 0);
+  updateCell_(sheet, rowIndex, 'מחיר נוכחי (לא ממומש)', ''); // אין עוד רלוונטיות אחרי סגירה
   if (body.notes) {
     var prevNotes = current['הערות'] || '';
     updateCell_(sheet, rowIndex, 'הערות', prevNotes ? prevNotes + ' | ' + body.notes : body.notes);
@@ -269,6 +270,10 @@ function handleUpdate_(body) {
   }
   if (body.chartUrl !== undefined && body.chartUrl !== null) {
     updateCell_(sheet, rowIndex, 'קישור צ\'ארט הפוזיציה', body.chartUrl);
+  }
+  if (body.currentPrice !== undefined) {
+    // currentPrice=null מנקה את הערך (למשל אחרי סגירת עסקה)
+    updateCell_(sheet, rowIndex, 'מחיר נוכחי (לא ממומש)', body.currentPrice === null ? '' : body.currentPrice);
   }
 
   return { tradeId: body.tradeId };
@@ -385,6 +390,7 @@ function readPositions_() {
       chartUrl: row[25],
       notes: row[26],
       equity: row[27] === '' ? null : Number(row[27]),
+      currentPrice: row[28] === '' || row[28] === undefined ? null : Number(row[28]),
     };
   });
 }
@@ -438,6 +444,15 @@ function ensureSheetWithHeaders_(name, headers) {
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     sheet.setFrozenRows(1);
     sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
+  } else {
+    // מיגרציה: אם נוספו כותרות חדשות לקוד אחרי שהגיליון כבר נוצר (למשל עדכון גרסה),
+    // משלימים אותן בסוף שורת הכותרות בלי לפגוע בנתונים קיימים.
+    var existingLastCol = sheet.getLastColumn();
+    if (existingLastCol < headers.length) {
+      var missing = headers.slice(existingLastCol);
+      sheet.getRange(1, existingLastCol + 1, 1, missing.length).setValues([missing]);
+      sheet.getRange(1, existingLastCol + 1, 1, missing.length).setFontWeight('bold');
+    }
   }
   return sheet;
 }

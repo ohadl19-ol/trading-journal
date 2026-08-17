@@ -6,6 +6,53 @@ export interface PatternBreakdown {
   count: number
 }
 
+export interface EquitySummary {
+  initialCapital: number
+  totalRealizedPnl: number
+  unrealizedPnl: number
+  currentEquity: number
+  pnlPercentage: number
+  openPositionsWithPrice: number
+  openPositionsMissingPrice: number
+}
+
+/**
+ * שווי חשבון אמיתי כרגע: תמיד מחושב על כל ההיסטוריה (לא מושפע מסינון התאריכים
+ * ביומן), כי "שווי נוכחי" הוא מצב אמיתי של החשבון ולא מדד ביצועים לתקופה.
+ * כולל גם רווח/הפסד לא ממומש מפוזיציות פתוחות שעודכן להן מחיר נוכחי.
+ */
+export function computeEquitySummary(allPositions: Position[], initialCapital: number): EquitySummary {
+  const closedTrades = allPositions.filter((p) => p.status === 'סגורה')
+  const openTrades = allPositions.filter((p) => p.status !== 'סגורה')
+
+  const totalRealizedPnl = closedTrades.reduce((sum, p) => sum + p.realizedPnl, 0)
+
+  let unrealizedPnl = 0
+  let openPositionsWithPrice = 0
+  let openPositionsMissingPrice = 0
+  for (const p of openTrades) {
+    if (p.currentPrice !== null && p.currentPrice !== undefined) {
+      unrealizedPnl += p.currentShares * (p.currentPrice - p.avgEntryPrice)
+      openPositionsWithPrice += 1
+    } else {
+      openPositionsMissingPrice += 1
+    }
+  }
+
+  const currentEquity = initialCapital + totalRealizedPnl + unrealizedPnl
+  const pnlPercentage = initialCapital !== 0 ? (currentEquity - initialCapital) / initialCapital : 0
+
+  return {
+    initialCapital,
+    totalRealizedPnl,
+    unrealizedPnl,
+    currentEquity,
+    pnlPercentage,
+    openPositionsWithPrice,
+    openPositionsMissingPrice,
+  }
+}
+
 export interface StatsResult {
   initialCapital: number
   totalRealizedPnl: number

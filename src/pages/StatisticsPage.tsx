@@ -1,7 +1,7 @@
 import * as React from 'react'
-import { TrendingUp, TrendingDown, Percent, Target, Award, AlertTriangle } from 'lucide-react'
+import { TrendingUp, TrendingDown, Percent, Target, Award, AlertTriangle, Wallet } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { computeStatistics } from '@/lib/statistics'
+import { computeStatistics, computeEquitySummary } from '@/lib/statistics'
 import { formatCurrency, formatPercentage } from '@/lib/calculations'
 import { filterPositionsByDate } from '@/lib/dateFilter'
 import type { DateRangeFilter, Position } from '@/types'
@@ -16,34 +16,58 @@ interface StatisticsPageProps {
 export function StatisticsPage({ positions, initialCapital, filter }: StatisticsPageProps) {
   const filtered = React.useMemo(() => filterPositionsByDate(positions, filter), [positions, filter])
   const stats = React.useMemo(() => computeStatistics(filtered, initialCapital), [filtered, initialCapital])
+  // שווי החשבון האמיתי מחושב תמיד על כל ההיסטוריה (לא מסונן), כולל רווח/הפסד לא ממומש
+  const equity = React.useMemo(() => computeEquitySummary(positions, initialCapital), [positions, initialCapital])
 
   const maxPatternAbs = Math.max(1, ...stats.patternBreakdown.map((p) => Math.abs(p.pnl)))
   const maxCategoryAbs = Math.max(1, ...stats.categoryBreakdown.map((p) => Math.abs(p.pnl)))
 
   return (
     <div className="space-y-4">
+      <div className="rounded-xl border border-border bg-surface p-3 text-xs text-text-muted">
+        כרטיסי ההון למעלה (הון התחלתי / רווח־הפסד ממומש / לא ממומש / שווי נוכחי / אחוזים) משקפים תמיד את
+        <b className="text-text"> מצב החשבון האמיתי על פני כל ההיסטוריה</b>, ללא קשר לסינון ביומן. שאר הכרטיסים
+        (אחוז הצלחה, תוחלת, פילוחים) מכבדים את הסינון הפעיל.
+        {equity.openPositionsMissingPrice > 0 && (
+          <span className="mt-1 block text-warn">
+            ⚠️ יש {equity.openPositionsMissingPrice} פוזיציות פתוחות בלי מחיר נוכחי מעודכן — הרווח/הפסד הלא ממומש
+            שלהן לא נכלל בחישוב. עדכן מחיר נוכחי בכרטיס העסקה ביומן (עריכת פרטים).
+          </span>
+        )}
+      </div>
+
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         <StatCard
           icon={<TrendingUp className="h-4 w-4" />}
           label="הון התחלתי"
-          value={`$${formatCurrency(stats.initialCapital)}`}
+          value={`$${formatCurrency(equity.initialCapital)}`}
         />
         <StatCard
-          icon={stats.totalRealizedPnl >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+          icon={equity.totalRealizedPnl >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
           label="רווח/הפסד ממומש כולל"
-          value={`${stats.totalRealizedPnl >= 0 ? '+' : ''}$${formatCurrency(stats.totalRealizedPnl)}`}
-          valueClass={stats.totalRealizedPnl >= 0 ? 'text-win' : 'text-loss'}
+          value={`${equity.totalRealizedPnl >= 0 ? '+' : ''}$${formatCurrency(equity.totalRealizedPnl)}`}
+          valueClass={equity.totalRealizedPnl >= 0 ? 'text-win' : 'text-loss'}
+        />
+        <StatCard
+          icon={<Wallet className="h-4 w-4" />}
+          label="רווח/הפסד לא ממומש (פתוח)"
+          value={
+            equity.openPositionsWithPrice === 0 && equity.openPositionsMissingPrice === 0
+              ? '—'
+              : `${equity.unrealizedPnl >= 0 ? '+' : ''}$${formatCurrency(equity.unrealizedPnl)}`
+          }
+          valueClass={equity.unrealizedPnl >= 0 ? 'text-win' : 'text-loss'}
         />
         <StatCard
           icon={<Award className="h-4 w-4" />}
           label="שווי נוכחי"
-          value={`$${formatCurrency(stats.currentEquity)}`}
+          value={`$${formatCurrency(equity.currentEquity)}`}
         />
         <StatCard
           icon={<Percent className="h-4 w-4" />}
           label="רווח/הפסד באחוזים"
-          value={formatPercentage(stats.pnlPercentage * 100)}
-          valueClass={stats.pnlPercentage >= 0 ? 'text-win' : 'text-loss'}
+          value={formatPercentage(equity.pnlPercentage * 100)}
+          valueClass={equity.pnlPercentage >= 0 ? 'text-win' : 'text-loss'}
         />
         <StatCard label="עסקאות מנצחות" value={stats.winCount.toString()} valueClass="text-win" />
         <StatCard label="עסקאות מפסידות" value={stats.lossCount.toString()} valueClass="text-loss" />

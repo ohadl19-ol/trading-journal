@@ -37,6 +37,10 @@ export function PositionCard({
   const [expanded, setExpanded] = React.useState(false)
   const isOpen = position.status !== 'סגורה'
   const pnlPositive = position.realizedPnl >= 0
+  const unrealizedPnl =
+    isOpen && position.currentPrice != null
+      ? position.currentShares * (position.currentPrice - position.avgEntryPrice)
+      : null
 
   return (
     <Card>
@@ -93,15 +97,29 @@ export function PositionCard({
           </div>
 
           <div className="text-right sm:text-left">
-            <div
-              className={cn(
-                'text-xl font-bold num-tabular',
-                position.realizedPnl !== 0 ? (pnlPositive ? 'text-win' : 'text-loss') : 'text-text-muted',
-              )}
-            >
-              {position.realizedPnl !== 0 && (pnlPositive ? '+' : '')}
-              ${formatCurrency(position.realizedPnl)}
-            </div>
+            {unrealizedPnl !== null ? (
+              <>
+                <div
+                  className={cn(
+                    'text-xl font-bold num-tabular',
+                    unrealizedPnl >= 0 ? 'text-win' : 'text-loss',
+                  )}
+                >
+                  {unrealizedPnl >= 0 ? '+' : ''}${formatCurrency(unrealizedPnl)}
+                </div>
+                <div className="text-xs text-text-muted">לא ממומש · במחיר ${formatCurrency(position.currentPrice)}</div>
+              </>
+            ) : (
+              <div
+                className={cn(
+                  'text-xl font-bold num-tabular',
+                  position.realizedPnl !== 0 ? (pnlPositive ? 'text-win' : 'text-loss') : 'text-text-muted',
+                )}
+              >
+                {position.realizedPnl !== 0 && (pnlPositive ? '+' : '')}
+                ${formatCurrency(position.realizedPnl)}
+              </div>
+            )}
             {position.realizedR !== null && (
               <div className="text-xs text-text-muted">{formatCurrency(position.realizedR)}R</div>
             )}
