@@ -9,6 +9,7 @@ import { SettingsPage } from '@/pages/SettingsPage'
 import { PatternsGuidePage } from '@/pages/PatternsGuidePage'
 import { useTradingData } from '@/hooks/useTradingData'
 import { loadSettings, saveSettings } from '@/lib/storage'
+import { computeEquitySummary } from '@/lib/statistics'
 import type { AppSettings, DateRangeFilter } from '@/types'
 
 type TabValue = 'calculator' | 'journal' | 'statistics' | 'patterns' | 'settings'
@@ -31,6 +32,11 @@ function AppShell() {
     updatePosition,
     deletePosition,
   } = useTradingData(settings)
+
+  const currentEquity = React.useMemo(
+    () => computeEquitySummary(positions, settings.initialCapital).currentEquity,
+    [positions, settings.initialCapital],
+  )
 
   function handleSaveSettings(next: AppSettings) {
     setSettings(next)
@@ -75,7 +81,7 @@ function AppShell() {
         />
 
         {tab === 'calculator' && (
-          <CalculatorPage settings={settings} onOpenTrade={openTrade} />
+          <CalculatorPage settings={settings} onOpenTrade={openTrade} currentEquity={currentEquity} />
         )}
         {tab === 'journal' && (
           <JournalPage

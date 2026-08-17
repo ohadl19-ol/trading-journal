@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Calculator as CalcIcon, Send } from 'lucide-react'
+import { Calculator as CalcIcon, Send, RefreshCw } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,9 +16,11 @@ import { cn } from '@/lib/utils'
 interface CalculatorPageProps {
   settings: AppSettings
   onOpenTrade: (input: OpenTradeInput) => Promise<void>
+  /** שווי החשבון הנוכחי המחושב בפועל (הון התחלתי + רווח/הפסד ממומש + לא ממומש) */
+  currentEquity: number
 }
 
-export function CalculatorPage({ settings, onOpenTrade }: CalculatorPageProps) {
+export function CalculatorPage({ settings, onOpenTrade, currentEquity }: CalculatorPageProps) {
   const { toast } = useToast()
   const [symbol, setSymbol] = React.useState('')
   const [pattern, setPattern] = React.useState<string>('')
@@ -26,10 +28,22 @@ export function CalculatorPage({ settings, onOpenTrade }: CalculatorPageProps) {
   const [entryPrice, setEntryPrice] = React.useState('')
   const [stopLoss, setStopLoss] = React.useState('')
   const [targetPrice, setTargetPrice] = React.useState('')
-  const [accountBalance, setAccountBalance] = React.useState(settings.defaultAccountBalance.toString())
+  const [accountBalance, setAccountBalance] = React.useState(() =>
+    (currentEquity || settings.defaultAccountBalance).toString(),
+  )
+  const [accountBalanceTouched, setAccountBalanceTouched] = React.useState(false)
   const [setupReason, setSetupReason] = React.useState('')
   const [chartUrl, setChartUrl] = React.useState('')
   const [submitting, setSubmitting] = React.useState(false)
+
+  // כשהשווי הנוכחי המחושב מתעדכן (למשל אחרי טעינת נתונים מהשרת) ועדיין לא ערכת ידנית
+  // את השדה בעצמך, ממלאים אותו אוטומטית עם השווי המעודכן
+  React.useEffect(() => {
+    if (!accountBalanceTouched && currentEquity) {
+      setAccountBalance(currentEquity.toString())
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentEquity])
 
   const riskAmountNum = parseFloat(riskAmount) || 0
   const entryPriceNum = parseFloat(entryPrice) || 0
@@ -123,11 +137,30 @@ export function CalculatorPage({ settings, onOpenTrade }: CalculatorPageProps) {
               <Input type="number" value={riskAmount} onChange={(e) => setRiskAmount(e.target.value)} />
             </div>
             <div>
-              <Label>יתרת חשבון ($)</Label>
+              <div className="mb-1 flex items-center justify-between">
+                <Label className="mb-0">יתרת חשבון ($)</Label>
+                {currentEquity > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAccountBalance(currentEquity.toString())
+                      setAccountBalanceTouched(false)
+                    }}
+                    className="flex items-center gap-1 text-xs text-accent hover:underline"
+                    title="עדכן ליתרה הנוכחית המחושבת מהיומן"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                    שווי נוכחי: ${formatCurrency(currentEquity)}
+                  </button>
+                )}
+              </div>
               <Input
                 type="number"
                 value={accountBalance}
-                onChange={(e) => setAccountBalance(e.target.value)}
+                onChange={(e) => {
+                  setAccountBalance(e.target.value)
+                  setAccountBalanceTouched(true)
+                }}
               />
             </div>
           </div>
