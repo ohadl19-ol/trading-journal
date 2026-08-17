@@ -380,6 +380,23 @@ export function useTradingData(settings: AppSettings) {
     [positions, executions, persistLocal, settings.webAppUrl, refresh],
   )
 
+  const deletePosition = React.useCallback(
+    async (tradeId: string) => {
+      const pos = positions.find((p) => p.tradeId === tradeId)
+      if (!pos) throw new Error('פוזיציה לא נמצאה')
+
+      const nextPositions = positions.filter((p) => p.tradeId !== tradeId)
+      const nextExecutions = executions.filter((e) => e.tradeId !== tradeId)
+      setPositions(nextPositions)
+      setExecutions(nextExecutions)
+      persistLocal(nextPositions, nextExecutions)
+
+      await postAction(settings.webAppUrl, { action: 'delete', tradeId })
+      await refresh()
+    },
+    [positions, executions, persistLocal, settings.webAppUrl, refresh],
+  )
+
   return {
     positions,
     executions,
@@ -391,5 +408,6 @@ export function useTradingData(settings: AppSettings) {
     trimPosition,
     closeTrade,
     updatePosition,
+    deletePosition,
   }
 }

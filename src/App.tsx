@@ -28,6 +28,7 @@ function AppShell() {
     trimPosition,
     closeTrade,
     updatePosition,
+    deletePosition,
   } = useTradingData(settings)
 
   function handleSaveSettings(next: AppSettings) {
@@ -84,6 +85,7 @@ function AppShell() {
             onTrim={trimPosition}
             onCloseTrade={closeTrade}
             onUpdate={updatePosition}
+            onDelete={deletePosition}
             filter={filter}
             onFilterChange={setFilter}
           />

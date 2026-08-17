@@ -66,6 +66,9 @@ function doPost(e) {
       case 'update':
         result = handleUpdate_(body);
         break;
+      case 'delete':
+        result = handleDelete_(body);
+        break;
       default:
         throw new Error('פעולה לא ידועה: ' + body.action);
     }
@@ -269,6 +272,35 @@ function handleUpdate_(body) {
   }
 
   return { tradeId: body.tradeId };
+}
+
+/**
+ * מוחק לצמיתות פוזיציה מלשונית "פוזיציות" וכל הפעולות שלה מלשונית "פעולות".
+ */
+function handleDelete_(body) {
+  var sheet = getPositionsSheet_();
+  var rowIndex = findPositionRow_(sheet, body.tradeId);
+  if (rowIndex === -1) throw new Error('פוזיציה לא נמצאה: ' + body.tradeId);
+
+  sheet.deleteRow(rowIndex);
+  deleteExecutionsForTrade_(body.tradeId);
+  recalcEquity_();
+
+  return { tradeId: body.tradeId };
+}
+
+function deleteExecutionsForTrade_(tradeId) {
+  var sheet = getExecutionsSheet_();
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+
+  var ids = sheet.getRange(2, 2, lastRow - 1, 1).getValues(); // עמודה ב' = מזהה עסקה
+  // מוחקים מלמטה למעלה כדי לא לשבש אינדקסים של שורות
+  for (var i = ids.length - 1; i >= 0; i--) {
+    if (ids[i][0] === tradeId) {
+      sheet.deleteRow(i + 2);
+    }
+  }
 }
 
 // ==================== חישוב equity מצטבר ====================

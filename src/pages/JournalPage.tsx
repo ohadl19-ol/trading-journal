@@ -23,6 +23,7 @@ interface JournalPageProps {
   onTrim: (input: TrimInput) => Promise<void>
   onCloseTrade: (input: CloseInput) => Promise<void>
   onUpdate: (input: UpdatePositionInput) => Promise<void>
+  onDelete: (tradeId: string) => Promise<void>
   filter: DateRangeFilter
   onFilterChange: (filter: DateRangeFilter) => void
 }
@@ -50,6 +51,7 @@ export function JournalPage({
   onTrim,
   onCloseTrade,
   onUpdate,
+  onDelete,
   filter,
   onFilterChange,
 }: JournalPageProps) {
@@ -59,7 +61,7 @@ export function JournalPage({
 
   const [dialogState, setDialogState] = React.useState<{
     position: Position | null
-    mode: 'add' | 'trim' | 'close' | 'chart' | 'edit' | null
+    mode: 'add' | 'trim' | 'close' | 'chart' | 'edit' | 'delete' | null
   }>({ position: null, mode: null })
 
   const dateFiltered = React.useMemo(() => filterPositionsByDate(positions, filter), [positions, filter])
@@ -201,6 +203,7 @@ export function JournalPage({
             onClose={() => setDialogState({ position, mode: 'close' })}
             onEditChart={() => setDialogState({ position, mode: 'chart' })}
             onEditDetails={() => setDialogState({ position, mode: 'edit' })}
+            onDelete={() => setDialogState({ position, mode: 'delete' })}
           />
         ))}
       </div>
@@ -213,6 +216,7 @@ export function JournalPage({
         onTrim={onTrim}
         onCloseTrade={onCloseTrade}
         onUpdate={onUpdate}
+        onDelete={onDelete}
       />
     </div>
   )

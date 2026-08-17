@@ -11,6 +11,7 @@ export type ActionPayload =
   | { action: 'trim'; [key: string]: unknown }
   | { action: 'close'; [key: string]: unknown }
   | { action: 'update'; [key: string]: unknown }
+  | { action: 'delete'; [key: string]: unknown }
 
 /**
  * שולח פעולה (POST) אל ה-Google Apps Script Web App.

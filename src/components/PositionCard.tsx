@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { ChevronDown, ExternalLink, Image as ImageIcon, Link as LinkIcon, PlusCircle, MinusCircle, XCircle, Pencil } from 'lucide-react'
+import { ChevronDown, ExternalLink, Image as ImageIcon, Link as LinkIcon, PlusCircle, MinusCircle, XCircle, Pencil, Trash2 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -15,6 +15,7 @@ interface PositionCardProps {
   onClose: () => void
   onEditChart: () => void
   onEditDetails: () => void
+  onDelete: () => void
 }
 
 const statusVariant = {
@@ -31,6 +32,7 @@ export function PositionCard({
   onClose,
   onEditChart,
   onEditDetails,
+  onDelete,
 }: PositionCardProps) {
   const [expanded, setExpanded] = React.useState(false)
   const isOpen = position.status !== 'סגורה'
@@ -148,6 +150,10 @@ export function PositionCard({
               <Pencil className="h-3.5 w-3.5" />
               עריכת פרטים
             </Button>
+            <Button size="sm" variant="ghost" className="text-loss hover:bg-loss-bg" onClick={onDelete}>
+              <Trash2 className="h-3.5 w-3.5" />
+              מחיקה
+            </Button>
           </div>
         )}
         {!isOpen && (
@@ -159,6 +165,10 @@ export function PositionCard({
             <Button size="sm" variant="ghost" onClick={onEditDetails}>
               <Pencil className="h-3.5 w-3.5" />
               עריכת פרטים
+            </Button>
+            <Button size="sm" variant="ghost" className="text-loss hover:bg-loss-bg" onClick={onDelete}>
+              <Trash2 className="h-3.5 w-3.5" />
+              מחיקה
             </Button>
           </div>
         )}

@@ -14,7 +14,7 @@ import type {
   UpdatePositionInput,
 } from '@/hooks/useTradingData'
 
-type DialogMode = 'add' | 'trim' | 'close' | 'chart' | 'edit' | null
+type DialogMode = 'add' | 'trim' | 'close' | 'chart' | 'edit' | 'delete' | null
 
 interface PositionDialogsProps {
   position: Position | null
@@ -24,6 +24,7 @@ interface PositionDialogsProps {
   onTrim: (input: TrimInput) => Promise<void>
   onCloseTrade: (input: CloseInput) => Promise<void>
   onUpdate: (input: UpdatePositionInput) => Promise<void>
+  onDelete: (tradeId: string) => Promise<void>
 }
 
 export function PositionDialogs({
@@ -34,6 +35,7 @@ export function PositionDialogs({
   onTrim,
   onCloseTrade,
   onUpdate,
+  onDelete,
 }: PositionDialogsProps) {
   const { toast } = useToast()
   const [submitting, setSubmitting] = React.useState(false)
@@ -273,6 +275,30 @@ export function PositionDialogs({
             }
           >
             {submitting ? 'שומר...' : 'שמור קישור'}
+          </Button>
+        </div>
+      </Dialog>
+    )
+  }
+
+  if (mode === 'delete') {
+    return (
+      <Dialog
+        open
+        onClose={onClose}
+        title={`מחיקת עסקה — ${position.symbol}`}
+        description="פעולה זו תמחק לצמיתות את הפוזיציה ואת כל הפעולות שלה, גם מהאפליקציה וגם מהגיליון בגוגל דרייב. לא ניתן לבטל."
+      >
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={onClose} disabled={submitting}>
+            ביטול
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={submitting}
+            onClick={() => run(() => onDelete(position.tradeId), 'העסקה נמחקה')}
+          >
+            {submitting ? 'מוחק...' : 'מחק לצמיתות'}
           </Button>
         </div>
       </Dialog>
