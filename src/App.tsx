@@ -1,16 +1,17 @@
 import * as React from 'react'
-import { Calculator, BookOpen, BarChart3, Settings as SettingsIcon, LineChart } from 'lucide-react'
+import { Calculator, BookOpen, BarChart3, Settings as SettingsIcon, LineChart, BookMarked } from 'lucide-react'
 import { Tabs } from '@/components/ui/tabs'
 import { ToastProvider } from '@/components/ui/toast'
 import { CalculatorPage } from '@/pages/CalculatorPage'
 import { JournalPage } from '@/pages/JournalPage'
 import { StatisticsPage } from '@/pages/StatisticsPage'
 import { SettingsPage } from '@/pages/SettingsPage'
+import { PatternsGuidePage } from '@/pages/PatternsGuidePage'
 import { useTradingData } from '@/hooks/useTradingData'
 import { loadSettings, saveSettings } from '@/lib/storage'
 import type { AppSettings, DateRangeFilter } from '@/types'
 
-type TabValue = 'calculator' | 'journal' | 'statistics' | 'settings'
+type TabValue = 'calculator' | 'journal' | 'statistics' | 'patterns' | 'settings'
 
 function AppShell() {
   const [tab, setTab] = React.useState<TabValue>('calculator')
@@ -68,6 +69,7 @@ function AppShell() {
             { value: 'calculator', label: 'מחשבון', icon: <Calculator className="h-4 w-4" /> },
             { value: 'journal', label: 'יומן עסקאות', icon: <BookOpen className="h-4 w-4" /> },
             { value: 'statistics', label: 'סטטיסטיקה', icon: <BarChart3 className="h-4 w-4" /> },
+            { value: 'patterns', label: 'מדריך תבניות', icon: <BookMarked className="h-4 w-4" /> },
             { value: 'settings', label: 'הגדרות', icon: <SettingsIcon className="h-4 w-4" /> },
           ]}
         />
@@ -93,6 +95,7 @@ function AppShell() {
         {tab === 'statistics' && (
           <StatisticsPage positions={positions} initialCapital={settings.initialCapital} filter={filter} />
         )}
+        {tab === 'patterns' && <PatternsGuidePage />}
         {tab === 'settings' && <SettingsPage settings={settings} onSave={handleSaveSettings} />}
       </main>
     </div>
