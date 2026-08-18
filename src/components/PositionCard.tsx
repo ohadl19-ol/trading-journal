@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { ChevronDown, ExternalLink, Image as ImageIcon, Link as LinkIcon, PlusCircle, MinusCircle, XCircle, Pencil, Trash2 } from 'lucide-react'
+import { ChevronDown, ExternalLink, Image as ImageIcon, Link as LinkIcon, PlusCircle, MinusCircle, XCircle, Pencil, Trash2, AlertOctagon } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -41,10 +41,18 @@ export function PositionCard({
     isOpen && position.currentPrice != null
       ? position.currentShares * (position.currentPrice - position.avgEntryPrice)
       : null
+  // עסקה קניה (long) חוצה סטופ כשהמחיר הנוכחי יורד עד/מתחת לרמת הסטופ
+  const stopBreached = isOpen && position.currentPrice != null && position.currentPrice <= position.stopLoss
 
   return (
-    <Card>
+    <Card className={stopBreached ? 'border-loss ring-1 ring-loss/40' : undefined}>
       <CardContent className="p-4">
+        {stopBreached && (
+          <div className="mb-3 flex items-center gap-2 rounded-lg bg-loss-bg px-3 py-2 text-sm font-medium text-loss">
+            <AlertOctagon className="h-4 w-4 shrink-0" />
+            המחיר הנוכחי (${formatCurrency(position.currentPrice!)}) חצה את הסטופ לוס (${formatCurrency(position.stopLoss)}) — שקול לסגור את הפוזיציה
+          </div>
+        )}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex gap-3">
             {position.chartUrl ? (

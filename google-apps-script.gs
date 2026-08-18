@@ -181,7 +181,9 @@ function handleTrim_(body) {
 
   if (sellShares >= currentShares) throw new Error('כמות המכירה חייבת להיות קטנה מהכמות הנוכחית');
 
-  var pnlInAction = sellShares * (sellPrice - avgEntry);
+  // עמלה קבועה (מוגדרת בהגדרות האפליקציה) מנוכה מכל מכירה/סגירה בנפרד
+  var commission = Number(body.commissionPerTrade) || 0;
+  var pnlInAction = sellShares * (sellPrice - avgEntry) - commission;
   var newRealizedPnl = (Number(current['רווח/הפסד ממומש $']) || 0) + pnlInAction;
   var newShares = currentShares - sellShares;
   var now = body.timestamp || new Date().toISOString();
@@ -218,7 +220,9 @@ function handleClose_(body) {
   var closePrice = Number(body.price) || 0;
   var riskAmount = Number(current['סכום סיכון $']) || 0;
 
-  var pnlInAction = currentShares * (closePrice - avgEntry);
+  // עמלה קבועה (מוגדרת בהגדרות האפליקציה) מנוכה מכל מכירה/סגירה בנפרד
+  var commission = Number(body.commissionPerTrade) || 0;
+  var pnlInAction = currentShares * (closePrice - avgEntry) - commission;
   var totalRealizedPnl = (Number(current['רווח/הפסד ממומש $']) || 0) + pnlInAction;
   var realizedR = riskAmount > 0 ? totalRealizedPnl / riskAmount : '';
   var now = body.timestamp || new Date().toISOString();

@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { TrendingUp, TrendingDown, Percent, Target, Award, AlertTriangle, Wallet, ArrowDownRight, Flame } from 'lucide-react'
+import { TrendingUp, TrendingDown, Percent, Target, Award, AlertTriangle, Wallet, ArrowDownRight, Flame, Clock } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { DateRangeFilterBar } from '@/components/DateRangeFilterBar'
 import { EquityCurveChart } from '@/components/EquityCurveChart'
@@ -12,6 +12,8 @@ import {
   computeDrawdown,
   computeStreaks,
   computeMonthlyPnl,
+  computeHoldingTime,
+  formatHoldingTime,
   getAvailableYearsAndQuarters,
   type EquityCurveRange,
 } from '@/lib/statistics'
@@ -41,6 +43,7 @@ export function StatisticsPage({ positions, initialCapital, filter, onFilterChan
   const drawdown = React.useMemo(() => computeDrawdown(drawdownFull), [drawdownFull])
   const streaks = React.useMemo(() => computeStreaks(positions), [positions])
   const monthlyPnl = React.useMemo(() => computeMonthlyPnl(positions), [positions])
+  const holdingTime = React.useMemo(() => computeHoldingTime(positions), [positions])
 
   // בורר תקופה עצמאי לעקומת ההון בלבד: הכול / שנה ספציפית / רבעון ספציפי
   const { years, quarters } = React.useMemo(() => getAvailableYearsAndQuarters(positions), [positions])
@@ -147,6 +150,18 @@ export function StatisticsPage({ positions, initialCapital, filter, onFilterChan
         <StatCard
           label="רצפים ארוכים ביותר"
           value={`${streaks.longestWinStreak} WIN / ${streaks.longestLossStreak} LOSS`}
+        />
+        <StatCard
+          icon={<Clock className="h-4 w-4" />}
+          label="זמן החזקה ממוצע — מנצחות"
+          value={formatHoldingTime(holdingTime.avgHoldHoursWin)}
+          valueClass="text-win"
+        />
+        <StatCard
+          icon={<Clock className="h-4 w-4" />}
+          label="זמן החזקה ממוצע — מפסידות"
+          value={formatHoldingTime(holdingTime.avgHoldHoursLoss)}
+          valueClass="text-loss"
         />
       </div>
 

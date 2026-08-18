@@ -240,6 +240,44 @@ export function computeMonthlyPnl(positions: Position[]): MonthlyPnl[] {
   return Array.from(map.values()).sort((a, b) => (a.year - b.year) || (a.month - b.month))
 }
 
+export interface HoldingTimeResult {
+  avgHoldHoursWin: number | null
+  avgHoldHoursLoss: number | null
+  avgHoldHoursAll: number | null
+}
+
+/**
+ * זמן החזקה ממוצע (בשעות) לעסקאות סגורות — בנפרד למנצחות ומפסידות. עוזר לזהות
+ * טעות נפוצה: החזקת הפסדים זמן ארוך יותר מרווחים.
+ */
+export function computeHoldingTime(positions: Position[]): HoldingTimeResult {
+  const closedTrades = positions.filter((p) => p.status === 'סגורה' && p.closeDate && p.openDate)
+
+  const hoursFor = (p: Position) =>
+    (new Date(p.closeDate!).getTime() - new Date(p.openDate).getTime()) / (1000 * 60 * 60)
+
+  const winHours = closedTrades.filter((p) => p.realizedPnl >= 0).map(hoursFor)
+  const lossHours = closedTrades.filter((p) => p.realizedPnl < 0).map(hoursFor)
+  const allHours = closedTrades.map(hoursFor)
+
+  const avg = (arr: number[]) => (arr.length > 0 ? arr.reduce((s, v) => s + v, 0) / arr.length : null)
+
+  return {
+    avgHoldHoursWin: avg(winHours),
+    avgHoldHoursLoss: avg(lossHours),
+    avgHoldHoursAll: avg(allHours),
+  }
+}
+
+/** מעצב שעות למחרוזת קריאה: שעות אם פחות מיום, ימים+שעות אם יותר */
+export function formatHoldingTime(hours: number | null): string {
+  if (hours === null) return '—'
+  if (hours < 24) return `${hours.toFixed(1)} שעות`
+  const days = Math.floor(hours / 24)
+  const rem = Math.round(hours % 24)
+  return rem > 0 ? `${days} ימים ${rem} שעות` : `${days} ימים`
+}
+
 export interface StatsResult {
   initialCapital: number
   totalRealizedPnl: number

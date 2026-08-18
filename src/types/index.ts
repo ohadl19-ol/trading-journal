@@ -84,6 +84,8 @@ export interface AppSettings {
   initialCapital: number
   defaultAccountBalance: number
   defaultRiskAmount: number
+  /** עמלה קבועה ($) שמנוכה אוטומטית מהרווח/הפסד בכל מכירה חלקית וסגירת עסקה */
+  commissionPerTrade: number
 }
 
 export interface CalculatorResult {

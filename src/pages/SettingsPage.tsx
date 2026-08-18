@@ -101,6 +101,17 @@ export function SettingsPage({ settings, onSave, positions, executions }: Settin
               onChange={(e) => setForm({ ...form, defaultRiskAmount: Number(e.target.value) })}
             />
           </div>
+          <div>
+            <Label>עמלה קבועה לעסקה ($)</Label>
+            <Input
+              type="number"
+              value={form.commissionPerTrade}
+              onChange={(e) => setForm({ ...form, commissionPerTrade: Number(e.target.value) })}
+            />
+            <p className="mt-1 text-xs text-text-muted">
+              מנוכה אוטומטית מהרווח/הפסד בכל מכירה חלקית וסגירת עסקה (0 = בלי עמלה).
+            </p>
+          </div>
         </CardContent>
       </Card>
 

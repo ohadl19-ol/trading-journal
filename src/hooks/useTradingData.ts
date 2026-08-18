@@ -254,7 +254,7 @@ export function useTradingData(settings: AppSettings) {
         throw new Error('למכירה חלקית הכמות חייבת להיות קטנה מהכמות הנוכחית')
       }
 
-      const pnlInAction = input.shares * (input.price - pos.avgEntryPrice)
+      const pnlInAction = input.shares * (input.price - pos.avgEntryPrice) - settings.commissionPerTrade
       const timestamp = nowIso()
 
       const updatedPosition: Position = {
@@ -290,10 +290,11 @@ export function useTradingData(settings: AppSettings) {
         shares: input.shares,
         notes: input.notes,
         timestamp,
+        commissionPerTrade: settings.commissionPerTrade,
       })
       await refresh()
     },
-    [positions, executions, persistLocal, settings.webAppUrl, refresh],
+    [positions, executions, persistLocal, settings.webAppUrl, settings.commissionPerTrade, refresh],
   )
 
   const closeTrade = React.useCallback(
@@ -301,7 +302,7 @@ export function useTradingData(settings: AppSettings) {
       const pos = positions.find((p) => p.tradeId === input.tradeId)
       if (!pos) throw new Error('פוזיציה לא נמצאה')
 
-      const pnlInAction = pos.currentShares * (input.price - pos.avgEntryPrice)
+      const pnlInAction = pos.currentShares * (input.price - pos.avgEntryPrice) - settings.commissionPerTrade
       const totalRealizedPnl = pos.realizedPnl + pnlInAction
       const realizedR = pos.riskAmount > 0 ? totalRealizedPnl / pos.riskAmount : null
       const timestamp = nowIso()
@@ -347,10 +348,11 @@ export function useTradingData(settings: AppSettings) {
         category: input.category,
         notes: input.notes,
         timestamp,
+        commissionPerTrade: settings.commissionPerTrade,
       })
       await refresh()
     },
-    [positions, executions, persistLocal, settings.webAppUrl, settings.initialCapital, refresh],
+    [positions, executions, persistLocal, settings.webAppUrl, settings.initialCapital, settings.commissionPerTrade, refresh],
   )
 
   const updatePosition = React.useCallback(
