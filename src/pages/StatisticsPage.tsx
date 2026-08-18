@@ -21,6 +21,7 @@ import {
 } from '@/lib/statistics'
 import { formatCurrency, formatPercentage } from '@/lib/calculations'
 import { filterPositionsByDate, getAvailableYears } from '@/lib/dateFilter'
+import { tradingViewSymbolUrl } from '@/lib/tradingview'
 import type { DateRangeFilter, Position } from '@/types'
 import { cn } from '@/lib/utils'
 
@@ -302,6 +303,16 @@ export function StatisticsPage({ positions, initialCapital, filter, onFilterChan
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-text">{t.symbol}</span>
+                      <a
+                        href={tradingViewSymbolUrl(t.symbol)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-accent hover:bg-accent/10"
+                        title={`פתח את הגרף החי של ${t.symbol} ב-TradingView`}
+                      >
+                        <TrendingUp className="h-3 w-3" />
+                        גרף חי
+                      </a>
                       <Badge variant={t.winLoss === 'WIN' ? 'win' : 'loss'}>{t.winLoss}</Badge>
                     </div>
                     <div className="mt-0.5 text-xs text-text-muted">

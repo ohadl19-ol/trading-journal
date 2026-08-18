@@ -1,9 +1,10 @@
 import * as React from 'react'
-import { ChevronDown, ExternalLink, Image as ImageIcon, Link as LinkIcon, PlusCircle, MinusCircle, XCircle, Pencil, Trash2, AlertOctagon } from 'lucide-react'
+import { ChevronDown, ExternalLink, Image as ImageIcon, Link as LinkIcon, PlusCircle, MinusCircle, XCircle, Pencil, Trash2, AlertOctagon, TrendingUp } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatCurrency, formatNumber, rrColorClass } from '@/lib/calculations'
+import { tradingViewSymbolUrl } from '@/lib/tradingview'
 import type { Execution, Position } from '@/types'
 import { cn } from '@/lib/utils'
 
@@ -88,6 +89,16 @@ export function PositionCard({
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-lg font-bold">{position.symbol}</span>
+                <a
+                  href={tradingViewSymbolUrl(position.symbol)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-accent hover:bg-accent/10"
+                  title={`פתח את הגרף החי של ${position.symbol} ב-TradingView`}
+                >
+                  <TrendingUp className="h-3 w-3" />
+                  גרף חי
+                </a>
                 <Badge variant={statusVariant[position.status]}>{position.status}</Badge>
                 {position.winLoss && (
                   <Badge variant={position.winLoss === 'WIN' ? 'win' : 'loss'}>
