@@ -63,9 +63,10 @@ export function PositionDialogs({
   const [editPattern, setEditPattern] = React.useState(position?.pattern ?? '')
   const [editReason, setEditReason] = React.useState(position?.setupReason ?? '')
   const [editNotes, setEditNotes] = React.useState(position?.notes ?? '')
-  const [editCurrentPrice, setEditCurrentPrice] = React.useState(
-    position?.currentPrice != null ? String(position.currentPrice) : '',
-  )
+  // שדה זה נשאר תמיד ריק בפתיחת הדיאלוג בכוונה: הוא עדכון ידני חד-פעמי בלבד.
+  // אם היינו ממלאים אותו מראש עם הערך הנוכחי, שמירת כל שדה אחר (כמו הערות) הייתה
+  // דורסת בטעות את הנוסחה החיה (GOOGLEFINANCE) בגיליון בערך קבוע וקופא.
+  const [editCurrentPrice, setEditCurrentPrice] = React.useState('')
   const [editStopLoss, setEditStopLoss] = React.useState(position ? String(position.stopLoss) : '')
 
   React.useEffect(() => {
@@ -74,7 +75,7 @@ export function PositionDialogs({
       setEditPattern(position.pattern ?? '')
       setEditReason(position.setupReason ?? '')
       setEditNotes(position.notes ?? '')
-      setEditCurrentPrice(position.currentPrice != null ? String(position.currentPrice) : '')
+      setEditCurrentPrice('')
       setEditStopLoss(String(position.stopLoss))
     }
     if (mode === 'add') {
@@ -345,12 +346,12 @@ export function PositionDialogs({
           )}
           {position.status !== 'סגורה' && (
             <div>
-              <Label>מחיר נוכחי בשוק (לחישוב רווח/הפסד לא ממומש)</Label>
+              <Label>מחיר נוכחי בשוק (עדכון ידני חד-פעמי — בד״כ מתעדכן אוטומטית מהגיליון)</Label>
               <Input
                 type="number"
                 value={editCurrentPrice}
                 onChange={(e) => setEditCurrentPrice(e.target.value)}
-                placeholder="לדוגמה 328.50"
+                placeholder="השאר ריק אם המחיר מתעדכן אוטומטית"
               />
             </div>
           )}
@@ -365,7 +366,9 @@ export function PositionDialogs({
                     pattern: editPattern,
                     setupReason: editReason,
                     notes: editNotes,
-                    currentPrice: editCurrentPrice === '' ? null : parseFloat(editCurrentPrice),
+                    // currentPrice נשלח רק אם המשתמש הזין ערך בפועל — אחרת לא נוגעים
+                    // בנוסחה החיה שכבר יושבת בתא (ראה הערה למעלה על editCurrentPrice)
+                    ...(editCurrentPrice !== '' ? { currentPrice: parseFloat(editCurrentPrice) } : {}),
                     stopLoss: editStopLoss === '' ? undefined : parseFloat(editStopLoss),
                   }),
                 'הפרטים עודכנו',

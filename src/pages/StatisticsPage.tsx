@@ -48,8 +48,8 @@ export function StatisticsPage({ positions, initialCapital, filter, onFilterChan
         (אחוז הצלחה, תוחלת, פילוחים) מכבדים את הסינון הפעיל.
         {equity.openPositionsMissingPrice > 0 && (
           <span className="mt-1 block text-warn">
-            ⚠️ יש {equity.openPositionsMissingPrice} פוזיציות פתוחות בלי מחיר נוכחי מעודכן — הרווח/הפסד הלא ממומש
-            שלהן לא נכלל בחישוב. עדכן מחיר נוכחי בכרטיס העסקה ביומן (עריכת פרטים).
+            ⚠️ יש {equity.openPositionsMissingPrice} פוזיציות פתוחות בלי מחיר עדכני — בד״כ זה מתעדכן אוטומטית מהגיליון
+            תוך כמה דקות; אם סימול לא נתמך, אפשר להזין מחיר ידני חד-פעמי בכרטיס העסקה ביומן (עריכת פרטים).
           </span>
         )}
       </div>

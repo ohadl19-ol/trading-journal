@@ -113,6 +113,7 @@ function handleOpen_(body) {
   setByHeader_(row, 'קישור צ\'ארט הפוזיציה', body.chartUrl);
 
   appendRow_(sheet, POSITIONS_HEADERS, row);
+  setLivePriceFormula_(sheet, sheet.getLastRow());
 
   addExecutionRow_({
     execId: 'E-' + Utilities.getUuid().slice(0, 8),
@@ -272,8 +273,13 @@ function handleUpdate_(body) {
     updateCell_(sheet, rowIndex, 'קישור צ\'ארט הפוזיציה', body.chartUrl);
   }
   if (body.currentPrice !== undefined) {
-    // currentPrice=null מנקה את הערך (למשל אחרי סגירת עסקה)
-    updateCell_(sheet, rowIndex, 'מחיר נוכחי (לא ממומש)', body.currentPrice === null ? '' : body.currentPrice);
+    if (body.currentPrice === 'LIVE') {
+      // הופך את המחיר לחי (GOOGLEFINANCE) — משמש בעיקר למיגרציה חד-פעמית של עסקאות פתוחות ישנות
+      setLivePriceFormula_(sheet, rowIndex);
+    } else {
+      // currentPrice=null מנקה את הערך (למשל אחרי סגירת עסקה); מספר = עדכון ידני חד-פעמי שדורס את הנוסחה החיה
+      updateCell_(sheet, rowIndex, 'מחיר נוכחי (לא ממומש)', body.currentPrice === null ? '' : body.currentPrice);
+    }
   }
   if (body.stopLoss !== undefined && body.stopLoss !== null) {
     updateCell_(sheet, rowIndex, 'מחיר סטופ לוס', body.stopLoss);
@@ -311,6 +317,18 @@ function deleteExecutionsForTrade_(tradeId) {
   }
 }
 
+/**
+ * מזין בעמודת "מחיר נוכחי (לא ממומש)" נוסחת GOOGLEFINANCE חיה שמצביעה על עמודת הסימול
+ * באותה שורה. משמש רק לעסקאות פתוחות — נקרא בפתיחת עסקה, ומנוקה (לערך ריק) בסגירה,
+ * כדי שעסקאות סגורות לעולם לא יתעדכנו יותר.
+ */
+function setLivePriceFormula_(sheet, rowIndex) {
+  var symbolCol = POSITIONS_HEADERS.indexOf('סימול') + 1;
+  var priceCol = POSITIONS_HEADERS.indexOf('מחיר נוכחי (לא ממומש)') + 1;
+  var symbolA1 = sheet.getRange(rowIndex, symbolCol).getA1Notation();
+  sheet.getRange(rowIndex, priceCol).setFormula('=IFERROR(GOOGLEFINANCE(' + symbolA1 + ',"price"),"")');
+}
+
 // ==================== חישוב equity מצטבר ====================
 
 function recalcEquity_() {
@@ -319,35 +337,44 @@ function recalcEquity_() {
   if (lastRow < 2) return;
 
   var headers = POSITIONS_HEADERS;
-  var data = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
   var closeDateCol = headers.indexOf('תאריך סגירה');
   var openDateCol = headers.indexOf('תאריך פתיחה');
   var statusCol = headers.indexOf('סטאטוס');
   var pnlCol = headers.indexOf('רווח/הפסד ממומש $');
   var equityCol = headers.indexOf('שווי מצטבר (equity)');
+  var n = lastRow - 1;
+
+  // קוראים רק את העמודות הדרושות לחישוב עצמו — לא את כל השורה — כדי לא לדרוס
+  // בטעות נוסחאות חיות (כמו GOOGLEFINANCE במחיר הנוכחי) בעמודות אחרות באותה שורה
+  var statusValues = sheet.getRange(2, statusCol + 1, n, 1).getValues();
+  var openDateValues = sheet.getRange(2, openDateCol + 1, n, 1).getValues();
+  var closeDateValues = sheet.getRange(2, closeDateCol + 1, n, 1).getValues();
+  var pnlValues = sheet.getRange(2, pnlCol + 1, n, 1).getValues();
 
   // ממיינים אינדקסים לפי תאריך סגירה/פתיחה כדי לחשב equity מצטבר כרונולוגית
   var indices = [];
-  for (var i = 0; i < data.length; i++) {
+  for (var i = 0; i < n; i++) {
     indices.push(i);
   }
   indices.sort(function (a, b) {
-    var da = new Date(data[a][closeDateCol] || data[a][openDateCol]);
-    var db = new Date(data[b][closeDateCol] || data[b][openDateCol]);
+    var da = new Date(closeDateValues[a][0] || openDateValues[a][0]);
+    var db = new Date(closeDateValues[b][0] || openDateValues[b][0]);
     return da - db;
   });
 
   var initialCapital = getInitialCapital_();
   var running = initialCapital;
+  var equityOut = [];
+  for (var e = 0; e < n; e++) equityOut.push(['']);
   for (var k = 0; k < indices.length; k++) {
     var idx = indices[k];
-    if (data[idx][statusCol] === 'סגורה') {
-      running += Number(data[idx][pnlCol]) || 0;
-      data[idx][equityCol] = running;
+    if (statusValues[idx][0] === 'סגורה') {
+      running += Number(pnlValues[idx][0]) || 0;
+      equityOut[idx] = [running];
     }
   }
 
-  sheet.getRange(2, 1, lastRow - 1, headers.length).setValues(data);
+  sheet.getRange(2, equityCol + 1, n, 1).setValues(equityOut);
 }
 
 function getInitialCapital_() {
