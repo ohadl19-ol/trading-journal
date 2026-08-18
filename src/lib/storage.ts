@@ -1,9 +1,10 @@
-import type { AppSettings, Execution, Position } from '@/types'
+import type { AppSettings, Execution, Position, WatchlistItem } from '@/types'
 
 const KEYS = {
   settings: 'tj_settings',
   positions: 'tj_positions',
   executions: 'tj_executions',
+  watchlist: 'tj_watchlist',
 } as const
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -52,4 +53,17 @@ export function loadLocalExecutions(): Execution[] {
 
 export function saveLocalExecutions(executions: Execution[]) {
   localStorage.setItem(KEYS.executions, JSON.stringify(executions))
+}
+
+export function loadLocalWatchlist(): WatchlistItem[] {
+  try {
+    const raw = localStorage.getItem(KEYS.watchlist)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+export function saveLocalWatchlist(watchlist: WatchlistItem[]) {
+  localStorage.setItem(KEYS.watchlist, JSON.stringify(watchlist))
 }

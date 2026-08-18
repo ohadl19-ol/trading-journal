@@ -1,8 +1,9 @@
-import type { Execution, Position } from '@/types'
+import type { Execution, Position, WatchlistItem } from '@/types'
 
 export interface GetDataResponse {
   trades: Position[]
   executions: Execution[]
+  watchlist: WatchlistItem[]
 }
 
 export type ActionPayload =
@@ -12,6 +13,9 @@ export type ActionPayload =
   | { action: 'close'; [key: string]: unknown }
   | { action: 'update'; [key: string]: unknown }
   | { action: 'delete'; [key: string]: unknown }
+  | { action: 'watchlistAdd'; [key: string]: unknown }
+  | { action: 'watchlistUpdate'; [key: string]: unknown }
+  | { action: 'watchlistDelete'; [key: string]: unknown }
 
 /**
  * שולח פעולה (POST) אל ה-Google Apps Script Web App.
@@ -49,6 +53,7 @@ export async function fetchData(webAppUrl: string): Promise<GetDataResponse> {
   return {
     trades: data.trades ?? [],
     executions: data.executions ?? [],
+    watchlist: data.watchlist ?? [],
   }
 }
 

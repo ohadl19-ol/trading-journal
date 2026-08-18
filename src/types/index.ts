@@ -79,6 +79,21 @@ export interface Execution {
   notes: string // הערות
 }
 
+// ==== לשונית "רשימת מעקב" ====
+export type AlertDirection = 'above' | 'below'
+
+export interface WatchlistItem {
+  watchId: string // מזהה מעקב
+  symbol: string // סימול
+  addedDate: string // תאריך הוספה (ISO)
+  targetPrice: number | null // מחיר יעד להתראה
+  alertDirection: AlertDirection // מעל / מתחת ליעד
+  notes: string // הערות
+  currentPrice: number | null // מחיר נוכחי (חי, מ-GOOGLEFINANCE)
+  alertTriggered: boolean // האם ההתראה כבר הופעלה
+  alertTriggeredDate: string | null // מתי ההתראה הופעלה
+}
+
 // ==== הגדרות ====
 export interface AppSettings {
   webAppUrl: string

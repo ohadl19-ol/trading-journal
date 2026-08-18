@@ -8,6 +8,13 @@
 var POSITIONS_SHEET_NAME = 'פוזיציות';
 var EXECUTIONS_SHEET_NAME = 'פעולות';
 var STATS_SHEET_NAME = 'סטטיסטיקה';
+var WATCHLIST_SHEET_NAME = 'רשימת מעקב';
+
+// כותרות לשונית "רשימת מעקב"
+var WATCHLIST_HEADERS = [
+  'מזהה מעקב', 'סימול', 'תאריך הוספה', 'מחיר יעד', 'כיוון התראה',
+  'הערות', 'מחיר נוכחי', 'התראה הופעלה', 'תאריך הפעלת התראה',
+];
 
 // כותרות לשונית "פוזיציות" - הסדר קובע את מבנה השורות בכל הקוד
 var POSITIONS_HEADERS = [
@@ -31,9 +38,11 @@ var DEFAULT_INITIAL_CAPITAL = 4455;
 // ==================== נקודות כניסה ====================
 
 function doGet(e) {
+  checkWatchlistAlerts_(); // בדיקה הזדמנותית בכל טעינה - שולחת מייל אם מניה חצתה יעד
   var trades = readPositions_();
   var executions = readExecutions_();
-  var payload = { trades: trades, executions: executions };
+  var watchlist = readWatchlist_();
+  var payload = { trades: trades, executions: executions, watchlist: watchlist };
 
   if (e && e.parameter && e.parameter.callback) {
     return ContentService
@@ -68,6 +77,15 @@ function doPost(e) {
         break;
       case 'delete':
         result = handleDelete_(body);
+        break;
+      case 'watchlistAdd':
+        result = handleWatchlistAdd_(body);
+        break;
+      case 'watchlistUpdate':
+        result = handleWatchlistUpdate_(body);
+        break;
+      case 'watchlistDelete':
+        result = handleWatchlistDelete_(body);
         break;
       default:
         throw new Error('פעולה לא ידועה: ' + body.action);
@@ -344,6 +362,147 @@ function setLivePriceFormula_(sheet, rowIndex) {
   var priceCol = POSITIONS_HEADERS.indexOf('מחיר נוכחי (לא ממומש)') + 1;
   var symbolA1 = sheet.getRange(rowIndex, symbolCol).getA1Notation();
   sheet.getRange(rowIndex, priceCol).setFormula('=IFERROR(GOOGLEFINANCE(' + symbolA1 + ',"price"),"")');
+}
+
+// ==================== רשימת מעקב ====================
+
+function getWatchlistSheet_() {
+  return ensureSheetWithHeaders_(WATCHLIST_SHEET_NAME, WATCHLIST_HEADERS);
+}
+
+function findWatchlistRow_(sheet, watchId) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return -1;
+  var ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  for (var i = 0; i < ids.length; i++) {
+    if (ids[i][0] === watchId) return i + 2;
+  }
+  return -1;
+}
+
+function handleWatchlistAdd_(body) {
+  var sheet = getWatchlistSheet_();
+  var row = [
+    body.watchId,
+    body.symbol,
+    body.addedDate || new Date().toISOString(),
+    body.targetPrice === undefined || body.targetPrice === null ? '' : body.targetPrice,
+    body.alertDirection || 'above',
+    body.notes || '',
+    '', // מחיר נוכחי - יוזן כנוסחה חיה למטה
+    false,
+    '',
+  ];
+  sheet.appendRow(row);
+
+  var symbolCol = WATCHLIST_HEADERS.indexOf('סימול') + 1;
+  var priceCol = WATCHLIST_HEADERS.indexOf('מחיר נוכחי') + 1;
+  var lastRow = sheet.getLastRow();
+  var symbolA1 = sheet.getRange(lastRow, symbolCol).getA1Notation();
+  sheet.getRange(lastRow, priceCol).setFormula('=IFERROR(GOOGLEFINANCE(' + symbolA1 + ',"price"),"")');
+
+  return { watchId: body.watchId };
+}
+
+function handleWatchlistUpdate_(body) {
+  var sheet = getWatchlistSheet_();
+  var rowIndex = findWatchlistRow_(sheet, body.watchId);
+  if (rowIndex === -1) throw new Error('פריט מעקב לא נמצא: ' + body.watchId);
+
+  function setCell(header, value) {
+    var col = WATCHLIST_HEADERS.indexOf(header) + 1;
+    sheet.getRange(rowIndex, col).setValue(value);
+  }
+
+  if (body.targetPrice !== undefined) {
+    setCell('מחיר יעד', body.targetPrice === null ? '' : body.targetPrice);
+  }
+  if (body.alertDirection !== undefined && body.alertDirection !== null) {
+    setCell('כיוון התראה', body.alertDirection);
+  }
+  if (body.notes !== undefined && body.notes !== null) {
+    setCell('הערות', body.notes);
+  }
+  // שינוי יעד/כיוון מאפס את מצב ההתראה, כדי שתקבל התראה חדשה אם המחיר יחצה שוב
+  if (body.targetPrice !== undefined || body.alertDirection !== undefined) {
+    setCell('התראה הופעלה', false);
+    setCell('תאריך הפעלת התראה', '');
+  }
+
+  return { watchId: body.watchId };
+}
+
+function handleWatchlistDelete_(body) {
+  var sheet = getWatchlistSheet_();
+  var rowIndex = findWatchlistRow_(sheet, body.watchId);
+  if (rowIndex === -1) throw new Error('פריט מעקב לא נמצא: ' + body.watchId);
+  sheet.deleteRow(rowIndex);
+  return { watchId: body.watchId };
+}
+
+function readWatchlist_() {
+  var sheet = getWatchlistSheet_();
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  var data = sheet.getRange(2, 1, lastRow - 1, WATCHLIST_HEADERS.length).getValues();
+  return data.map(function (row) {
+    return {
+      watchId: row[0],
+      symbol: row[1],
+      addedDate: toIsoString_(row[2]),
+      targetPrice: row[3] === '' ? null : Number(row[3]),
+      alertDirection: row[4] || 'above',
+      notes: row[5],
+      currentPrice: row[6] === '' ? null : Number(row[6]),
+      alertTriggered: row[7] === true,
+      alertTriggeredDate: row[8] ? toIsoString_(row[8]) : null,
+    };
+  });
+}
+
+/**
+ * בודקת את כל פריטי רשימת המעקב שעדיין לא הופעלו, ואם המחיר החי חצה את היעד
+ * (מעל/מתחת, לפי מה שהוגדר) — שולחת מייל לבעל הגיליון ומסמנת כמופעלת כדי לא
+ * לשלוח שוב. אפשר לקרוא לפונקציה הזו גם דרך טריגר מתוזמן (זמן) לבדיקה ברקע,
+ * לא רק כשהאפליקציה פתוחה.
+ */
+function checkWatchlistAlerts_() {
+  var sheet = getWatchlistSheet_();
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+
+  var data = sheet.getRange(2, 1, lastRow - 1, WATCHLIST_HEADERS.length).getValues();
+  var triggeredCol = WATCHLIST_HEADERS.indexOf('התראה הופעלה');
+  var triggeredDateCol = WATCHLIST_HEADERS.indexOf('תאריך הפעלת התראה');
+
+  for (var i = 0; i < data.length; i++) {
+    var row = data[i];
+    var symbol = row[1];
+    var targetPrice = row[3];
+    var direction = row[4] || 'above';
+    var currentPrice = row[6];
+    var alreadyTriggered = row[triggeredCol] === true;
+
+    if (alreadyTriggered || targetPrice === '' || currentPrice === '') continue;
+
+    var hit = direction === 'above' ? Number(currentPrice) >= Number(targetPrice) : Number(currentPrice) <= Number(targetPrice);
+    if (!hit) continue;
+
+    var rowIndex = i + 2;
+    var now = new Date().toISOString();
+    sheet.getRange(rowIndex, triggeredCol + 1).setValue(true);
+    sheet.getRange(rowIndex, triggeredDateCol + 1).setValue(now);
+
+    try {
+      var directionText = direction === 'above' ? 'עלה מעל' : 'ירד מתחת ל';
+      var subject = '🔔 ' + symbol + ' ' + directionText + ' ' + targetPrice + '$';
+      var body = symbol + ' הגיע למחיר ' + currentPrice + '$ (יעד: ' + directionText + ' ' + targetPrice + '$).\n\n' +
+        'נבדק אוטומטית ע"י אפליקציית יומן המסחר שלך.';
+      MailApp.sendEmail(Session.getActiveUser().getEmail(), subject, body);
+    } catch (mailErr) {
+      // כשל בשליחת מייל לא אמור לעצור את שאר הבדיקות
+    }
+  }
 }
 
 // ==================== חישוב equity מצטבר ====================

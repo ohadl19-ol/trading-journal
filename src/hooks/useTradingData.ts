@@ -1,11 +1,13 @@
 import * as React from 'react'
-import type { AppSettings, Execution, OutcomeType, PatternType, Position } from '@/types'
+import type { AlertDirection, AppSettings, Execution, OutcomeType, PatternType, Position, WatchlistItem } from '@/types'
 import { fetchData, postAction } from '@/lib/api'
 import {
   loadLocalExecutions,
   loadLocalPositions,
+  loadLocalWatchlist,
   saveLocalExecutions,
   saveLocalPositions,
+  saveLocalWatchlist,
 } from '@/lib/storage'
 import { generateId, nowIso } from '@/lib/utils'
 import { calculatePosition } from '@/lib/calculations'
@@ -54,6 +56,20 @@ export interface UpdatePositionInput {
   stopLoss?: number
 }
 
+export interface AddWatchlistInput {
+  symbol: string
+  targetPrice: number | null
+  alertDirection: AlertDirection
+  notes: string
+}
+
+export interface UpdateWatchlistInput {
+  watchId: string
+  targetPrice?: number | null
+  alertDirection?: AlertDirection
+  notes?: string
+}
+
 function recalcEquity(positions: Position[], initialCapital: number): Position[] {
   const sorted = [...positions].sort((a, b) => {
     const da = a.closeDate || a.openDate
@@ -76,6 +92,7 @@ function recalcEquity(positions: Position[], initialCapital: number): Position[]
 export function useTradingData(settings: AppSettings) {
   const [positions, setPositions] = React.useState<Position[]>(() => loadLocalPositions())
   const [executions, setExecutions] = React.useState<Execution[]>(() => loadLocalExecutions())
+  const [watchlist, setWatchlist] = React.useState<WatchlistItem[]>(() => loadLocalWatchlist())
   const [loading, setLoading] = React.useState(false)
   const [syncError, setSyncError] = React.useState<string | null>(null)
 
@@ -93,7 +110,9 @@ export function useTradingData(settings: AppSettings) {
       const recalced = recalcEquity(data.trades, settings.initialCapital)
       setPositions(recalced)
       setExecutions(data.executions)
+      setWatchlist(data.watchlist)
       persistLocal(recalced, data.executions)
+      saveLocalWatchlist(data.watchlist)
     } catch (err) {
       setSyncError(err instanceof Error ? err.message : 'שגיאה לא ידועה בסנכרון')
     } finally {
@@ -416,9 +435,94 @@ export function useTradingData(settings: AppSettings) {
     [positions, executions, persistLocal, settings.webAppUrl, refresh],
   )
 
+  const persistWatchlist = React.useCallback((wl: WatchlistItem[]) => {
+    saveLocalWatchlist(wl)
+  }, [])
+
+  const addToWatchlist = React.useCallback(
+    async (input: AddWatchlistInput) => {
+      const watchId = generateId('W')
+      const addedDate = nowIso()
+
+      const newItem: WatchlistItem = {
+        watchId,
+        symbol: input.symbol.toUpperCase(),
+        addedDate,
+        targetPrice: input.targetPrice,
+        alertDirection: input.alertDirection,
+        notes: input.notes,
+        currentPrice: null,
+        alertTriggered: false,
+        alertTriggeredDate: null,
+      }
+
+      const next = [newItem, ...watchlist]
+      setWatchlist(next)
+      persistWatchlist(next)
+
+      await postAction(settings.webAppUrl, {
+        action: 'watchlistAdd',
+        watchId,
+        symbol: newItem.symbol,
+        addedDate,
+        targetPrice: input.targetPrice,
+        alertDirection: input.alertDirection,
+        notes: input.notes,
+      })
+      await refresh()
+    },
+    [watchlist, persistWatchlist, settings.webAppUrl, refresh],
+  )
+
+  const updateWatchlistItem = React.useCallback(
+    async (input: UpdateWatchlistInput) => {
+      const item = watchlist.find((w) => w.watchId === input.watchId)
+      if (!item) throw new Error('פריט מעקב לא נמצא')
+
+      const updated: WatchlistItem = {
+        ...item,
+        targetPrice: input.targetPrice !== undefined ? input.targetPrice : item.targetPrice,
+        alertDirection: input.alertDirection ?? item.alertDirection,
+        notes: input.notes !== undefined ? input.notes : item.notes,
+        // שינוי יעד/כיוון מאפס את מצב ההתראה בצד הלקוח, בדיוק כמו בשרת
+        alertTriggered:
+          input.targetPrice !== undefined || input.alertDirection !== undefined ? false : item.alertTriggered,
+        alertTriggeredDate:
+          input.targetPrice !== undefined || input.alertDirection !== undefined ? null : item.alertTriggeredDate,
+      }
+
+      const next = watchlist.map((w) => (w.watchId === input.watchId ? updated : w))
+      setWatchlist(next)
+      persistWatchlist(next)
+
+      await postAction(settings.webAppUrl, {
+        action: 'watchlistUpdate',
+        watchId: input.watchId,
+        targetPrice: input.targetPrice,
+        alertDirection: input.alertDirection,
+        notes: input.notes,
+      })
+      await refresh()
+    },
+    [watchlist, persistWatchlist, settings.webAppUrl, refresh],
+  )
+
+  const deleteFromWatchlist = React.useCallback(
+    async (watchId: string) => {
+      const next = watchlist.filter((w) => w.watchId !== watchId)
+      setWatchlist(next)
+      persistWatchlist(next)
+
+      await postAction(settings.webAppUrl, { action: 'watchlistDelete', watchId })
+      await refresh()
+    },
+    [watchlist, persistWatchlist, settings.webAppUrl, refresh],
+  )
+
   return {
     positions,
     executions,
+    watchlist,
     loading,
     syncError,
     refresh,
@@ -428,5 +532,8 @@ export function useTradingData(settings: AppSettings) {
     closeTrade,
     updatePosition,
     deletePosition,
+    addToWatchlist,
+    updateWatchlistItem,
+    deleteFromWatchlist,
   }
 }
