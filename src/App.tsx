@@ -109,6 +109,7 @@ function AppShell() {
             positions={positions}
             executions={executions}
             loading={loading}
+            webAppUrl={settings.webAppUrl}
             onRefresh={refresh}
             onAddShares={addShares}
             onTrim={trimPosition}

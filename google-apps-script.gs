@@ -92,6 +92,9 @@ function doPost(e) {
       case 'saveNotes':
         result = handleSaveNotes_(body);
         break;
+      case 'fetchChartImages':
+        result = handleFetchChartImages_(body);
+        break;
       default:
         throw new Error('פעולה לא ידועה: ' + body.action);
     }
@@ -550,6 +553,56 @@ function handleSaveNotes_(body) {
     sheet.getRange('B2').setValue(body.tradingRules);
   }
   return { status: 'saved' };
+}
+
+// ==================== משיכת תמונות צ'ארט (לייצוא עם תמונות) ====================
+
+var CHART_IMAGES_MAX = 15; // מגבלת בטיחות למספר תמונות בקריאה אחת (זמן ריצה + גודל תשובה)
+
+/**
+ * מקבל רשימת עסקאות עם קישור צ'ארט (tradeId/symbol/chartUrl), מושך את עמוד ה-
+ * snapshot של כל אחת מ-TradingView, מחלץ ממנו את קישור התמונה האמיתי (og:image),
+ * ומחזיר את בייטס התמונה מקודדים ב-base64. רץ בצד השרת (לא בדפדפן) כדי לעקוף
+ * מגבלות CORS על משיכת תמונות מאתר חיצוני.
+ */
+function handleFetchChartImages_(body) {
+  var items = body.charts || [];
+  var truncated = items.length > CHART_IMAGES_MAX;
+  var limited = items.slice(0, CHART_IMAGES_MAX);
+  var results = [];
+
+  for (var i = 0; i < limited.length; i++) {
+    var item = limited[i];
+    try {
+      var pageResp = UrlFetchApp.fetch(item.chartUrl, { muteHttpExceptions: true });
+      if (pageResp.getResponseCode() !== 200) {
+        results.push({ tradeId: item.tradeId, symbol: item.symbol, error: 'שגיאה בטעינת עמוד הצ׳ארט' });
+        continue;
+      }
+      var html = pageResp.getContentText();
+      var match = html.match(/property="og:image" content="([^"]+)"/);
+      if (!match) {
+        results.push({ tradeId: item.tradeId, symbol: item.symbol, error: 'לא נמצאה תמונה בעמוד' });
+        continue;
+      }
+      var imgResp = UrlFetchApp.fetch(match[1], { muteHttpExceptions: true });
+      if (imgResp.getResponseCode() !== 200) {
+        results.push({ tradeId: item.tradeId, symbol: item.symbol, error: 'שגיאה במשיכת קובץ התמונה' });
+        continue;
+      }
+      var blob = imgResp.getBlob();
+      results.push({
+        tradeId: item.tradeId,
+        symbol: item.symbol,
+        base64: Utilities.base64Encode(blob.getBytes()),
+        contentType: blob.getContentType(),
+      });
+    } catch (err) {
+      results.push({ tradeId: item.tradeId, symbol: item.symbol, error: err.message });
+    }
+  }
+
+  return { images: results, truncated: truncated, totalRequested: items.length, limit: CHART_IMAGES_MAX };
 }
 
 // ==================== חישוב equity מצטבר ====================

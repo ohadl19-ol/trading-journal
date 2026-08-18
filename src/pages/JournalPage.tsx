@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { RefreshCw, Download } from 'lucide-react'
+import { RefreshCw, Download, Images } from 'lucide-react'
 import { PositionCard } from '@/components/PositionCard'
 import { PositionDialogs } from '@/components/PositionDialogs'
 import { DateRangeFilterBar } from '@/components/DateRangeFilterBar'
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 import { filterPositionsByDate, getAvailableYears } from '@/lib/dateFilter'
 import { exportFilteredCsv } from '@/lib/csvExport'
+import { exportFilteredZip } from '@/lib/zipExport'
 import { PATTERN_OPTIONS, type DateRangeFilter, type Execution, type Position } from '@/types'
 import type {
   AddSharesInput,
@@ -21,6 +22,7 @@ interface JournalPageProps {
   positions: Position[]
   executions: Execution[]
   loading: boolean
+  webAppUrl: string
   onRefresh: () => void
   onAddShares: (input: AddSharesInput) => Promise<void>
   onTrim: (input: TrimInput) => Promise<void>
@@ -36,6 +38,7 @@ export function JournalPage({
   positions,
   executions,
   loading,
+  webAppUrl,
   onRefresh,
   onAddShares,
   onTrim,
@@ -50,6 +53,7 @@ export function JournalPage({
   const [searchText, setSearchText] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState('')
   const [patternFilter, setPatternFilter] = React.useState('')
+  const [exportingZip, setExportingZip] = React.useState(false)
 
   const [dialogState, setDialogState] = React.useState<{
     position: Position | null
@@ -105,6 +109,30 @@ export function JournalPage({
     toast(`יוצאו ${sorted.length} עסקאות מהסינון הנוכחי`)
   }
 
+  async function handleExportZip() {
+    if (sorted.length === 0) {
+      toast('אין עסקאות בסינון הנוכחי לייצוא', 'error')
+      return
+    }
+    setExportingZip(true)
+    try {
+      const result = await exportFilteredZip(webAppUrl, sorted, executions)
+      if (result.imagesIncluded === 0 && result.imagesFailed === 0) {
+        toast(`יוצא ZIP עם ${sorted.length} עסקאות (בלי תמונות — אין קישורי צ׳ארט בסינון)`)
+      } else {
+        toast(
+          `יוצא ZIP: ${result.imagesIncluded} תמונות נכללו` +
+            (result.imagesFailed > 0 ? `, ${result.imagesFailed} נכשלו` : '') +
+            (result.truncated ? ` (הוגבל ל-15 תמונות, צמצם את הסינון לקבלת יותר)` : ''),
+        )
+      }
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'שגיאה בייצוא ה-ZIP', 'error')
+    } finally {
+      setExportingZip(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
       <DateRangeFilterBar
@@ -116,6 +144,10 @@ export function JournalPage({
             <Button size="sm" variant="ghost" onClick={handleExportFiltered}>
               <Download className="h-3.5 w-3.5" />
               ייצוא מסונן ({sorted.length})
+            </Button>
+            <Button size="sm" variant="ghost" onClick={handleExportZip} disabled={exportingZip}>
+              <Images className="h-3.5 w-3.5" />
+              {exportingZip ? 'מייצא...' : 'ייצוא עם תמונות (ZIP)'}
             </Button>
             <Button size="sm" variant="ghost" onClick={onRefresh} disabled={loading}>
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />

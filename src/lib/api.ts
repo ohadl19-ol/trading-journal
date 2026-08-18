@@ -23,6 +23,22 @@ export type ActionPayload =
   | { action: 'watchlistUpdate'; [key: string]: unknown }
   | { action: 'watchlistDelete'; [key: string]: unknown }
   | { action: 'saveNotes'; [key: string]: unknown }
+  | { action: 'fetchChartImages'; charts: { tradeId: string; symbol: string; chartUrl: string }[] }
+
+export interface ChartImageResult {
+  tradeId: string
+  symbol: string
+  base64?: string
+  contentType?: string
+  error?: string
+}
+
+export interface FetchChartImagesResponse {
+  images: ChartImageResult[]
+  truncated: boolean
+  totalRequested: number
+  limit: number
+}
 
 /**
  * שולח פעולה (POST) אל ה-Google Apps Script Web App.
@@ -30,6 +46,11 @@ export type ActionPayload =
  * ה-Apps Script קורא את e.postData.contents ומפענח JSON בעצמו.
  */
 export async function postAction(webAppUrl: string, payload: ActionPayload): Promise<void> {
+  await postActionWithResult(webAppUrl, payload)
+}
+
+/** כמו postAction, אבל מחזיר גם את ה-result שהשרת שלח בחזרה (לפעולות שמחזירות נתונים) */
+export async function postActionWithResult<T = unknown>(webAppUrl: string, payload: ActionPayload): Promise<T> {
   if (!webAppUrl) throw new Error('לא הוגדרה כתובת Web App. עבור להגדרות והזן כתובת.')
 
   const res = await fetch(webAppUrl, {
@@ -46,6 +67,15 @@ export async function postAction(webAppUrl: string, payload: ActionPayload): Pro
   if (data && data.status && data.status !== 'ok') {
     throw new Error(data.message || 'הפעולה נכשלה בשרת')
   }
+  return data?.result as T
+}
+
+/** מושך תמונות צ'ארט אמיתיות (לא רק קישורים) עבור עסקאות עם קישור צ'ארט, דרך ה-Backend */
+export async function fetchChartImages(
+  webAppUrl: string,
+  charts: { tradeId: string; symbol: string; chartUrl: string }[],
+): Promise<FetchChartImagesResponse> {
+  return postActionWithResult<FetchChartImagesResponse>(webAppUrl, { action: 'fetchChartImages', charts })
 }
 
 /** משיכת כל הנתונים (GET) מה-Web App */

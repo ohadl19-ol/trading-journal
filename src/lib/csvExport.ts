@@ -62,6 +62,16 @@ function executionToRow(e: Execution): unknown[] {
   ]
 }
 
+/** בונה את תוכן ה-CSV של הפוזיציות כמחרוזת (לשימוש חוזר, למשל בארזת ZIP) */
+export function buildPositionsCsv(positions: Position[]): string {
+  return toCsv(POSITIONS_HEADERS, positions.map(positionToRow))
+}
+
+/** בונה את תוכן ה-CSV של הפעולות כמחרוזת */
+export function buildExecutionsCsv(executions: Execution[]): string {
+  return toCsv(EXECUTIONS_HEADERS, executions.map(executionToRow))
+}
+
 /** מייצא את כל הפוזיציות והפעולות לקובץ CSV אחד לגיבוי מקומי עצמאי */
 export function exportBackupCsv(positions: Position[], executions: Execution[]) {
   exportPositionsCsv(positions, executions, 'יומן-מסחר')
@@ -81,12 +91,6 @@ export function exportFilteredCsv(filteredPositions: Position[], allExecutions: 
 function exportPositionsCsv(positions: Position[], executions: Execution[], filePrefix: string) {
   const date = new Date().toISOString().slice(0, 10)
 
-  downloadCsv(
-    `${filePrefix}-פוזיציות-${date}.csv`,
-    toCsv(POSITIONS_HEADERS, positions.map(positionToRow)),
-  )
-  downloadCsv(
-    `${filePrefix}-פעולות-${date}.csv`,
-    toCsv(EXECUTIONS_HEADERS, executions.map(executionToRow)),
-  )
+  downloadCsv(`${filePrefix}-פוזיציות-${date}.csv`, buildPositionsCsv(positions))
+  downloadCsv(`${filePrefix}-פעולות-${date}.csv`, buildExecutionsCsv(executions))
 }
