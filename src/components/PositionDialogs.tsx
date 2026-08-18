@@ -66,6 +66,7 @@ export function PositionDialogs({
   const [editCurrentPrice, setEditCurrentPrice] = React.useState(
     position?.currentPrice != null ? String(position.currentPrice) : '',
   )
+  const [editStopLoss, setEditStopLoss] = React.useState(position ? String(position.stopLoss) : '')
 
   React.useEffect(() => {
     if (position && mode === 'chart') setChartUrl(position.chartUrl ?? '')
@@ -74,6 +75,7 @@ export function PositionDialogs({
       setEditReason(position.setupReason ?? '')
       setEditNotes(position.notes ?? '')
       setEditCurrentPrice(position.currentPrice != null ? String(position.currentPrice) : '')
+      setEditStopLoss(String(position.stopLoss))
     }
     if (mode === 'add') {
       setAddPrice('')
@@ -333,6 +335,16 @@ export function PositionDialogs({
           </div>
           {position.status !== 'סגורה' && (
             <div>
+              <Label>סטופ לוס (לדוגמה עדכון טריילינג סטופ)</Label>
+              <Input
+                type="number"
+                value={editStopLoss}
+                onChange={(e) => setEditStopLoss(e.target.value)}
+              />
+            </div>
+          )}
+          {position.status !== 'סגורה' && (
+            <div>
               <Label>מחיר נוכחי בשוק (לחישוב רווח/הפסד לא ממומש)</Label>
               <Input
                 type="number"
@@ -354,6 +366,7 @@ export function PositionDialogs({
                     setupReason: editReason,
                     notes: editNotes,
                     currentPrice: editCurrentPrice === '' ? null : parseFloat(editCurrentPrice),
+                    stopLoss: editStopLoss === '' ? undefined : parseFloat(editStopLoss),
                   }),
                 'הפרטים עודכנו',
               )

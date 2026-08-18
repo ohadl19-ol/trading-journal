@@ -42,7 +42,7 @@ export function JournalPage({
   filter,
   onFilterChange,
 }: JournalPageProps) {
-  const [symbolFilter, setSymbolFilter] = React.useState('')
+  const [searchText, setSearchText] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState('')
   const [patternFilter, setPatternFilter] = React.useState('')
 
@@ -54,13 +54,17 @@ export function JournalPage({
   const dateFiltered = React.useMemo(() => filterPositionsByDate(positions, filter), [positions, filter])
 
   const fullyFiltered = React.useMemo(() => {
+    const q = searchText.trim().toLowerCase()
     return dateFiltered.filter((p) => {
-      if (symbolFilter && !p.symbol.toLowerCase().includes(symbolFilter.toLowerCase())) return false
+      if (q) {
+        const haystack = `${p.symbol} ${p.setupReason ?? ''} ${p.notes ?? ''}`.toLowerCase()
+        if (!haystack.includes(q)) return false
+      }
       if (statusFilter && p.status !== statusFilter) return false
       if (patternFilter && p.pattern !== patternFilter) return false
       return true
     })
-  }, [dateFiltered, symbolFilter, statusFilter, patternFilter])
+  }, [dateFiltered, searchText, statusFilter, patternFilter])
 
   const sorted = React.useMemo(
     () => [...fullyFiltered].sort((a, b) => new Date(b.openDate).getTime() - new Date(a.openDate).getTime()),
@@ -96,9 +100,9 @@ export function JournalPage({
       <div className="rounded-xl border border-border bg-surface p-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Input
-            placeholder="חיפוש לפי סימול..."
-            value={symbolFilter}
-            onChange={(e) => setSymbolFilter(e.target.value)}
+            placeholder="חיפוש לפי סימול, הערות או סיבת כניסה..."
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
           />
           <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="">כל הסטאטוסים</option>

@@ -1,8 +1,17 @@
 import * as React from 'react'
-import { TrendingUp, TrendingDown, Percent, Target, Award, AlertTriangle, Wallet } from 'lucide-react'
+import { TrendingUp, TrendingDown, Percent, Target, Award, AlertTriangle, Wallet, ArrowDownRight, Flame } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { DateRangeFilterBar } from '@/components/DateRangeFilterBar'
-import { computeStatistics, computeEquitySummary } from '@/lib/statistics'
+import { EquityCurveChart } from '@/components/EquityCurveChart'
+import { MonthlyHeatmap } from '@/components/MonthlyHeatmap'
+import {
+  computeStatistics,
+  computeEquitySummary,
+  computeEquityCurve,
+  computeDrawdown,
+  computeStreaks,
+  computeMonthlyPnl,
+} from '@/lib/statistics'
 import { formatCurrency, formatPercentage } from '@/lib/calculations'
 import { filterPositionsByDate } from '@/lib/dateFilter'
 import type { DateRangeFilter, Position } from '@/types'
@@ -20,6 +29,11 @@ export function StatisticsPage({ positions, initialCapital, filter, onFilterChan
   const stats = React.useMemo(() => computeStatistics(filtered, initialCapital), [filtered, initialCapital])
   // שווי החשבון האמיתי מחושב תמיד על כל ההיסטוריה (לא מסונן), כולל רווח/הפסד לא ממומש
   const equity = React.useMemo(() => computeEquitySummary(positions, initialCapital), [positions, initialCapital])
+  // עקומת הון, Drawdown וסטריקים תמיד על כל ההיסטוריה (אותה הגיון כמו כרטיסי ההון)
+  const equityCurve = React.useMemo(() => computeEquityCurve(positions, initialCapital), [positions, initialCapital])
+  const drawdown = React.useMemo(() => computeDrawdown(equityCurve), [equityCurve])
+  const streaks = React.useMemo(() => computeStreaks(positions), [positions])
+  const monthlyPnl = React.useMemo(() => computeMonthlyPnl(positions), [positions])
 
   const maxPatternAbs = Math.max(1, ...stats.patternBreakdown.map((p) => Math.abs(p.pnl)))
   const maxCategoryAbs = Math.max(1, ...stats.categoryBreakdown.map((p) => Math.abs(p.pnl)))
@@ -90,7 +104,45 @@ export function StatisticsPage({ positions, initialCapital, filter, onFilterChan
           label="עסקאות סגורות"
           value={stats.closedTrades.length.toString()}
         />
+        <StatCard
+          icon={<ArrowDownRight className="h-4 w-4" />}
+          label="Max Drawdown"
+          value={`-$${formatCurrency(drawdown.maxDrawdown)} (${formatPercentage(drawdown.maxDrawdownPercentage * 100)})`}
+          valueClass={drawdown.maxDrawdown > 0 ? 'text-loss' : undefined}
+        />
+        <StatCard
+          icon={<Flame className="h-4 w-4" />}
+          label="רצף נוכחי"
+          value={
+            streaks.currentStreak === 0
+              ? '—'
+              : `${Math.abs(streaks.currentStreak)} ${streaks.currentStreak > 0 ? 'ניצחונות ברצף' : 'הפסדים ברצף'}`
+          }
+          valueClass={streaks.currentStreak > 0 ? 'text-win' : streaks.currentStreak < 0 ? 'text-loss' : undefined}
+        />
+        <StatCard
+          label="רצפים ארוכים ביותר"
+          value={`${streaks.longestWinStreak} WIN / ${streaks.longestLossStreak} LOSS`}
+        />
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>עקומת הון</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <EquityCurveChart points={equityCurve} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>רווח/הפסד חודשי</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <MonthlyHeatmap monthly={monthlyPnl} />
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>

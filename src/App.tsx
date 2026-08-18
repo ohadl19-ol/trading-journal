@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Calculator, BookOpen, BarChart3, Settings as SettingsIcon, LineChart, BookMarked } from 'lucide-react'
+import { Calculator, BookOpen, BarChart3, Settings as SettingsIcon, LineChart, BookMarked, Sun, Moon } from 'lucide-react'
 import { Tabs } from '@/components/ui/tabs'
 import { ToastProvider } from '@/components/ui/toast'
 import { CalculatorPage } from '@/pages/CalculatorPage'
@@ -10,6 +10,7 @@ import { PatternsGuidePage } from '@/pages/PatternsGuidePage'
 import { useTradingData } from '@/hooks/useTradingData'
 import { loadSettings, saveSettings } from '@/lib/storage'
 import { computeEquitySummary } from '@/lib/statistics'
+import { getStoredTheme, applyTheme, type Theme } from '@/lib/theme'
 import type { AppSettings, DateRangeFilter } from '@/types'
 
 type TabValue = 'calculator' | 'journal' | 'statistics' | 'patterns' | 'settings'
@@ -18,6 +19,9 @@ function AppShell() {
   const [tab, setTab] = React.useState<TabValue>('calculator')
   const [settings, setSettings] = React.useState<AppSettings>(() => loadSettings())
   const [filter, setFilter] = React.useState<DateRangeFilter>({ preset: 'month' })
+  const [theme, setTheme] = React.useState<Theme>(() => getStoredTheme())
+
+  React.useEffect(() => applyTheme(theme), [theme])
 
   const {
     positions,
@@ -64,6 +68,13 @@ function AppShell() {
               {syncError}
             </span>
           )}
+          <button
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className={`flex h-9 w-9 items-center justify-center rounded-lg border border-border text-text-muted hover:text-text ${settings.webAppUrl && !syncError ? 'mr-auto' : ''}`}
+            title={theme === 'dark' ? 'עבור למצב בהיר' : 'עבור למצב כהה'}
+          >
+            {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
         </div>
       </header>
 
@@ -107,7 +118,14 @@ function AppShell() {
           />
         )}
         {tab === 'patterns' && <PatternsGuidePage />}
-        {tab === 'settings' && <SettingsPage settings={settings} onSave={handleSaveSettings} />}
+        {tab === 'settings' && (
+          <SettingsPage
+            settings={settings}
+            onSave={handleSaveSettings}
+            positions={positions}
+            executions={executions}
+          />
+        )}
       </main>
     </div>
   )

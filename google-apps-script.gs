@@ -275,6 +275,9 @@ function handleUpdate_(body) {
     // currentPrice=null מנקה את הערך (למשל אחרי סגירת עסקה)
     updateCell_(sheet, rowIndex, 'מחיר נוכחי (לא ממומש)', body.currentPrice === null ? '' : body.currentPrice);
   }
+  if (body.stopLoss !== undefined && body.stopLoss !== null) {
+    updateCell_(sheet, rowIndex, 'מחיר סטופ לוס', body.stopLoss);
+  }
 
   return { tradeId: body.tradeId };
 }

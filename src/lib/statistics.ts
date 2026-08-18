@@ -53,6 +53,119 @@ export function computeEquitySummary(allPositions: Position[], initialCapital: n
   }
 }
 
+export interface EquityPoint {
+  date: string // תאריך סגירה (ISO)
+  equity: number
+  tradeSymbol: string
+  tradePnl: number
+}
+
+export interface DrawdownResult {
+  maxDrawdown: number // $ (מספר חיובי = גודל הירידה)
+  maxDrawdownPercentage: number
+  currentDrawdown: number
+  peakEquity: number
+}
+
+export interface StreakResult {
+  currentStreak: number // חיובי = רצף מנצח, שלילי = רצף מפסיד
+  longestWinStreak: number
+  longestLossStreak: number
+}
+
+export interface MonthlyPnl {
+  year: number
+  month: number // 0-11
+  pnl: number
+  count: number
+}
+
+/**
+ * עקומת הון כרונולוגית: כל נקודה היא ה-equity המצטבר מיד אחרי סגירת עסקה,
+ * ממוינת לפי תאריך סגירה. נקודת הפתיחה היא ההון ההתחלתי עצמו.
+ */
+export function computeEquityCurve(allPositions: Position[], initialCapital: number): EquityPoint[] {
+  const closedTrades = allPositions
+    .filter((p) => p.status === 'סגורה' && p.closeDate)
+    .sort((a, b) => new Date(a.closeDate!).getTime() - new Date(b.closeDate!).getTime())
+
+  let running = initialCapital
+  const points: EquityPoint[] = [{ date: '', equity: initialCapital, tradeSymbol: '', tradePnl: 0 }]
+  for (const p of closedTrades) {
+    running += p.realizedPnl
+    points.push({ date: p.closeDate!, equity: running, tradeSymbol: p.symbol, tradePnl: p.realizedPnl })
+  }
+  return points
+}
+
+/** Max Drawdown: הירידה המצטברת הגדולה ביותר מפסגה (peak) לשפל (trough) לאורך העקומה */
+export function computeDrawdown(equityCurve: EquityPoint[]): DrawdownResult {
+  let peak = equityCurve.length > 0 ? equityCurve[0].equity : 0
+  let maxDrawdown = 0
+  let maxDrawdownPercentage = 0
+
+  for (const point of equityCurve) {
+    if (point.equity > peak) peak = point.equity
+    const dd = peak - point.equity
+    if (dd > maxDrawdown) {
+      maxDrawdown = dd
+      maxDrawdownPercentage = peak !== 0 ? dd / peak : 0
+    }
+  }
+
+  const lastEquity = equityCurve.length > 0 ? equityCurve[equityCurve.length - 1].equity : 0
+  const currentDrawdown = peak - lastEquity
+
+  return { maxDrawdown, maxDrawdownPercentage, currentDrawdown, peakEquity: peak }
+}
+
+/** רצפי ניצחון/הפסד רצופים, לפי סדר סגירה כרונולוגי */
+export function computeStreaks(positions: Position[]): StreakResult {
+  const closedTrades = positions
+    .filter((p) => p.status === 'סגורה' && p.closeDate)
+    .sort((a, b) => new Date(a.closeDate!).getTime() - new Date(b.closeDate!).getTime())
+
+  let currentStreak = 0
+  let longestWinStreak = 0
+  let longestLossStreak = 0
+  let runWin = 0
+  let runLoss = 0
+
+  for (const p of closedTrades) {
+    const isWin = p.realizedPnl >= 0
+    if (isWin) {
+      runWin += 1
+      runLoss = 0
+      currentStreak = runWin
+    } else {
+      runLoss += 1
+      runWin = 0
+      currentStreak = -runLoss
+    }
+    longestWinStreak = Math.max(longestWinStreak, runWin)
+    longestLossStreak = Math.max(longestLossStreak, runLoss)
+  }
+
+  return { currentStreak, longestWinStreak, longestLossStreak }
+}
+
+/** פילוח רווח/הפסד לפי חודש-שנה, לפי תאריך סגירה (לשימוש במפת חום חודשית) */
+export function computeMonthlyPnl(positions: Position[]): MonthlyPnl[] {
+  const map = new Map<string, MonthlyPnl>()
+  for (const p of positions) {
+    if (p.status !== 'סגורה' || !p.closeDate) continue
+    const d = new Date(p.closeDate)
+    const year = d.getFullYear()
+    const month = d.getMonth()
+    const key = `${year}-${month}`
+    const entry = map.get(key) || { year, month, pnl: 0, count: 0 }
+    entry.pnl += p.realizedPnl
+    entry.count += 1
+    map.set(key, entry)
+  }
+  return Array.from(map.values()).sort((a, b) => (a.year - b.year) || (a.month - b.month))
+}
+
 export interface StatsResult {
   initialCapital: number
   totalRealizedPnl: number

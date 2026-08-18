@@ -1,22 +1,34 @@
 import * as React from 'react'
-import { Wifi, Save } from 'lucide-react'
+import { Wifi, Save, Download } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 import { testConnection } from '@/lib/api'
-import type { AppSettings } from '@/types'
+import { exportBackupCsv } from '@/lib/csvExport'
+import type { AppSettings, Execution, Position } from '@/types'
 
 interface SettingsPageProps {
   settings: AppSettings
   onSave: (settings: AppSettings) => void
+  positions: Position[]
+  executions: Execution[]
 }
 
-export function SettingsPage({ settings, onSave }: SettingsPageProps) {
+export function SettingsPage({ settings, onSave, positions, executions }: SettingsPageProps) {
   const { toast } = useToast()
   const [form, setForm] = React.useState<AppSettings>(settings)
   const [testing, setTesting] = React.useState(false)
+
+  function handleExport() {
+    if (positions.length === 0) {
+      toast('אין נתונים לייצוא', 'error')
+      return
+    }
+    exportBackupCsv(positions, executions)
+    toast('קובצי הגיבוי הורדו')
+  }
 
   React.useEffect(() => setForm(settings), [settings])
 
@@ -96,6 +108,21 @@ export function SettingsPage({ settings, onSave }: SettingsPageProps) {
         <Save className="h-4 w-4" />
         שמור הגדרות
       </Button>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>גיבוי נתונים</CardTitle>
+          <CardDescription>
+            הורדת כל הפוזיציות והפעולות כקובצי CSV לגיבוי מקומי עצמאי, בנוסף לגיליון בגוגל דרייב.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button variant="secondary" onClick={handleExport}>
+            <Download className="h-4 w-4" />
+            ייצוא כ-CSV ({positions.length} עסקאות)
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   )
 }
