@@ -61,7 +61,11 @@ export function JournalPage({
         const haystack = `${p.symbol} ${p.setupReason ?? ''} ${p.notes ?? ''}`.toLowerCase()
         if (!haystack.includes(q)) return false
       }
-      if (statusFilter && p.status !== statusFilter) return false
+      if (statusFilter === 'WIN' || statusFilter === 'LOSS') {
+        if (p.winLoss !== statusFilter) return false
+      } else if (statusFilter && p.status !== statusFilter) {
+        return false
+      }
       if (patternFilter && p.pattern !== patternFilter) return false
       return true
     })
@@ -111,6 +115,8 @@ export function JournalPage({
             <option value="פתוחה">פתוחה</option>
             <option value="פתוחה חלקית">פתוחה חלקית</option>
             <option value="סגורה">סגורה</option>
+            <option value="WIN">WIN</option>
+            <option value="LOSS">LOSS</option>
           </Select>
           <Select value={patternFilter} onChange={(e) => setPatternFilter(e.target.value)}>
             <option value="">כל סוגי הגרף</option>
