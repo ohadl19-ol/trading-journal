@@ -4,13 +4,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { DateRangeFilterBar } from '@/components/DateRangeFilterBar'
 import { EquityCurveChart } from '@/components/EquityCurveChart'
 import { MonthlyHeatmap } from '@/components/MonthlyHeatmap'
+import { Select } from '@/components/ui/select'
 import {
   computeStatistics,
   computeEquitySummary,
-  computeEquityCurve,
+  computeEquityCurveForRange,
   computeDrawdown,
   computeStreaks,
   computeMonthlyPnl,
+  getAvailableYearsAndQuarters,
+  type EquityCurveRange,
 } from '@/lib/statistics'
 import { formatCurrency, formatPercentage } from '@/lib/calculations'
 import { filterPositionsByDate } from '@/lib/dateFilter'
@@ -24,16 +27,37 @@ interface StatisticsPageProps {
   onFilterChange: (filter: DateRangeFilter) => void
 }
 
+const QUARTER_LABELS = { 1: 'רבעון 1 (ינו-מרץ)', 2: 'רבעון 2 (אפר-יונ)', 3: 'רבעון 3 (יול-ספט)', 4: 'רבעון 4 (אוק-דצמ)' } as const
+
 export function StatisticsPage({ positions, initialCapital, filter, onFilterChange }: StatisticsPageProps) {
   const filtered = React.useMemo(() => filterPositionsByDate(positions, filter), [positions, filter])
   const stats = React.useMemo(() => computeStatistics(filtered, initialCapital), [filtered, initialCapital])
   // שווי החשבון האמיתי מחושב תמיד על כל ההיסטוריה (לא מסונן), כולל רווח/הפסד לא ממומש
   const equity = React.useMemo(() => computeEquitySummary(positions, initialCapital), [positions, initialCapital])
-  // עקומת הון, Drawdown וסטריקים תמיד על כל ההיסטוריה (אותה הגיון כמו כרטיסי ההון)
-  const equityCurve = React.useMemo(() => computeEquityCurve(positions, initialCapital), [positions, initialCapital])
-  const drawdown = React.useMemo(() => computeDrawdown(equityCurve), [equityCurve])
+  const drawdownFull = React.useMemo(
+    () => computeEquityCurveForRange(positions, initialCapital, { type: 'all' }),
+    [positions, initialCapital],
+  )
+  const drawdown = React.useMemo(() => computeDrawdown(drawdownFull), [drawdownFull])
   const streaks = React.useMemo(() => computeStreaks(positions), [positions])
   const monthlyPnl = React.useMemo(() => computeMonthlyPnl(positions), [positions])
+
+  // בורר תקופה עצמאי לעקומת ההון בלבד: הכול / שנה ספציפית / רבעון ספציפי
+  const { years, quarters } = React.useMemo(() => getAvailableYearsAndQuarters(positions), [positions])
+  const [curveMode, setCurveMode] = React.useState<'all' | 'year' | 'quarter'>('all')
+  const [curveYear, setCurveYear] = React.useState<number | null>(null)
+  const [curveQuarter, setCurveQuarter] = React.useState<{ year: number; quarter: 1 | 2 | 3 | 4 } | null>(null)
+
+  const curveRange: EquityCurveRange = React.useMemo(() => {
+    if (curveMode === 'year' && curveYear !== null) return { type: 'year', year: curveYear }
+    if (curveMode === 'quarter' && curveQuarter !== null) return { type: 'quarter', ...curveQuarter }
+    return { type: 'all' }
+  }, [curveMode, curveYear, curveQuarter])
+
+  const equityCurve = React.useMemo(
+    () => computeEquityCurveForRange(positions, initialCapital, curveRange),
+    [positions, initialCapital, curveRange],
+  )
 
   const maxPatternAbs = Math.max(1, ...stats.patternBreakdown.map((p) => Math.abs(p.pnl)))
   const maxCategoryAbs = Math.max(1, ...stats.categoryBreakdown.map((p) => Math.abs(p.pnl)))
@@ -127,11 +151,61 @@ export function StatisticsPage({ positions, initialCapital, filter, onFilterChan
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex-row items-center justify-between gap-3">
           <CardTitle>עקומת הון</CardTitle>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex gap-1 rounded-lg bg-surface-2 p-1">
+              {(['all', 'year', 'quarter'] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setCurveMode(m)}
+                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                    curveMode === m ? 'bg-accent text-accent-fg' : 'text-text-muted hover:text-text'
+                  }`}
+                >
+                  {m === 'all' ? 'הכול' : m === 'year' ? 'לפי שנה' : 'לפי רבעון'}
+                </button>
+              ))}
+            </div>
+            {curveMode === 'year' && (
+              <Select
+                className="w-32"
+                value={curveYear ?? ''}
+                onChange={(e) => setCurveYear(Number(e.target.value))}
+              >
+                <option value="">בחר שנה...</option>
+                {years.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </Select>
+            )}
+            {curveMode === 'quarter' && (
+              <Select
+                className="w-48"
+                value={curveQuarter ? `${curveQuarter.year}-${curveQuarter.quarter}` : ''}
+                onChange={(e) => {
+                  const [y, q] = e.target.value.split('-').map(Number)
+                  setCurveQuarter(e.target.value ? { year: y, quarter: q as 1 | 2 | 3 | 4 } : null)
+                }}
+              >
+                <option value="">בחר רבעון...</option>
+                {quarters.map((q) => (
+                  <option key={`${q.year}-${q.quarter}`} value={`${q.year}-${q.quarter}`}>
+                    {q.year} — {QUARTER_LABELS[q.quarter]}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
-          <EquityCurveChart points={equityCurve} />
+          {(curveMode === 'year' && curveYear === null) || (curveMode === 'quarter' && curveQuarter === null) ? (
+            <p className="py-8 text-center text-sm text-text-muted">בחר {curveMode === 'year' ? 'שנה' : 'רבעון'} להצגה</p>
+          ) : (
+            <EquityCurveChart points={equityCurve} />
+          )}
         </CardContent>
       </Card>
 

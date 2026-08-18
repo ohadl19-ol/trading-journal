@@ -98,6 +98,80 @@ export function computeEquityCurve(allPositions: Position[], initialCapital: num
   return points
 }
 
+export type EquityCurveRange = { type: 'all' } | { type: 'year'; year: number } | { type: 'quarter'; year: number; quarter: 1 | 2 | 3 | 4 }
+
+export interface YearQuarterOption {
+  year: number
+  quarter: 1 | 2 | 3 | 4
+}
+
+/** רשימת השנים והרבעונים הקיימים בפועל בהיסטוריית העסקאות הסגורות, ממוינים כרונולוגית */
+export function getAvailableYearsAndQuarters(positions: Position[]): { years: number[]; quarters: YearQuarterOption[] } {
+  const closedTrades = positions.filter((p) => p.status === 'סגורה' && p.closeDate)
+  const yearSet = new Set<number>()
+  const quarterSet = new Set<string>()
+  for (const p of closedTrades) {
+    const d = new Date(p.closeDate!)
+    const year = d.getFullYear()
+    const quarter = (Math.floor(d.getMonth() / 3) + 1) as 1 | 2 | 3 | 4
+    yearSet.add(year)
+    quarterSet.add(`${year}-${quarter}`)
+  }
+  const years = Array.from(yearSet).sort((a, b) => a - b)
+  const quarters = Array.from(quarterSet)
+    .map((k) => {
+      const [year, quarter] = k.split('-').map(Number)
+      return { year, quarter: quarter as 1 | 2 | 3 | 4 }
+    })
+    .sort((a, b) => a.year - b.year || a.quarter - b.quarter)
+  return { years, quarters }
+}
+
+/**
+ * עקומת הון לתקופה נבחרת (שנה / רבעון / הכול). נקודת ההתחלה של העקומה היא ה-equity
+ * שהיה בפועל בתחילת התקופה (הון התחלתי + כל הרווח/הפסד שנצבר בעסקאות שנסגרו *לפני*
+ * התקופה) — כך שהעקומה מציגה את התנועה האמיתית בתוך התקופה, לא מתחילה תמיד מ-0.
+ */
+export function computeEquityCurveForRange(
+  allPositions: Position[],
+  initialCapital: number,
+  range: EquityCurveRange,
+): EquityPoint[] {
+  const closedTrades = allPositions
+    .filter((p) => p.status === 'סגורה' && p.closeDate)
+    .sort((a, b) => new Date(a.closeDate!).getTime() - new Date(b.closeDate!).getTime())
+
+  function inRange(dateStr: string): boolean {
+    if (range.type === 'all') return true
+    const d = new Date(dateStr)
+    if (range.type === 'year') return d.getFullYear() === range.year
+    const quarter = Math.floor(d.getMonth() / 3) + 1
+    return d.getFullYear() === range.year && quarter === range.quarter
+  }
+
+  function isBeforeRange(dateStr: string): boolean {
+    if (range.type === 'all') return false
+    const d = new Date(dateStr)
+    if (range.type === 'year') return d.getFullYear() < range.year
+    const quarter = Math.floor(d.getMonth() / 3) + 1
+    return d.getFullYear() < range.year || (d.getFullYear() === range.year && quarter < range.quarter)
+  }
+
+  let baseline = initialCapital
+  for (const p of closedTrades) {
+    if (isBeforeRange(p.closeDate!)) baseline += p.realizedPnl
+  }
+
+  let running = baseline
+  const points: EquityPoint[] = [{ date: '', equity: baseline, tradeSymbol: '', tradePnl: 0 }]
+  for (const p of closedTrades) {
+    if (!inRange(p.closeDate!)) continue
+    running += p.realizedPnl
+    points.push({ date: p.closeDate!, equity: running, tradeSymbol: p.symbol, tradePnl: p.realizedPnl })
+  }
+  return points
+}
+
 /** Max Drawdown: הירידה המצטברת הגדולה ביותר מפסגה (peak) לשפל (trough) לאורך העקומה */
 export function computeDrawdown(equityCurve: EquityPoint[]): DrawdownResult {
   let peak = equityCurve.length > 0 ? equityCurve[0].equity : 0
