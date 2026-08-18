@@ -14,8 +14,15 @@
     <meta name="apple-mobile-web-app-title" content="יומן מסחר" />
     <meta name="description" content="ניהול פוזיציות, יומן עסקאות וסטטיסטיקה מסונכרנים עם Google Sheets" />
     <title>יומן מסחר</title>
-    <script type="module" crossorigin src="/trading-journal/assets/index-B0xER7Tj.js"></script>
-    <link rel="stylesheet" crossorigin href="/trading-journal/assets/index-CfydfbDI.css">
+    <script>
+      // מונע הבהוב (flash) של הערכת ברירת המחדל לפני שה-React נטען
+      try {
+        var t = localStorage.getItem('tj_theme')
+        if (t === 'light') document.documentElement.setAttribute('data-theme', 'light')
+      } catch (e) {}
+    </script>
+    <script type="module" crossorigin src="/trading-journal/assets/index-CechtGgI.js"></script>
+    <link rel="stylesheet" crossorigin href="/trading-journal/assets/index-CYHpISZ4.css">
   </head>
   <body>
     <div id="root"></div>
