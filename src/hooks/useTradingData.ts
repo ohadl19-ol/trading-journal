@@ -1,11 +1,13 @@
 import * as React from 'react'
 import type { AlertDirection, AppSettings, Execution, OutcomeType, PatternType, Position, WatchlistItem } from '@/types'
-import { fetchData, postAction } from '@/lib/api'
+import { fetchData, postAction, type GeneralNotes } from '@/lib/api'
 import {
   loadLocalExecutions,
+  loadLocalNotes,
   loadLocalPositions,
   loadLocalWatchlist,
   saveLocalExecutions,
+  saveLocalNotes,
   saveLocalPositions,
   saveLocalWatchlist,
 } from '@/lib/storage'
@@ -54,6 +56,7 @@ export interface UpdatePositionInput {
   chartUrl?: string
   currentPrice?: number | null
   stopLoss?: number
+  isFavorite?: boolean
 }
 
 export interface AddWatchlistInput {
@@ -93,6 +96,7 @@ export function useTradingData(settings: AppSettings) {
   const [positions, setPositions] = React.useState<Position[]>(() => loadLocalPositions())
   const [executions, setExecutions] = React.useState<Execution[]>(() => loadLocalExecutions())
   const [watchlist, setWatchlist] = React.useState<WatchlistItem[]>(() => loadLocalWatchlist())
+  const [notes, setNotes] = React.useState<GeneralNotes>(() => loadLocalNotes())
   const [loading, setLoading] = React.useState(false)
   const [syncError, setSyncError] = React.useState<string | null>(null)
 
@@ -111,8 +115,10 @@ export function useTradingData(settings: AppSettings) {
       setPositions(recalced)
       setExecutions(data.executions)
       setWatchlist(data.watchlist)
+      setNotes(data.notes)
       persistLocal(recalced, data.executions)
       saveLocalWatchlist(data.watchlist)
+      saveLocalNotes(data.notes)
     } catch (err) {
       setSyncError(err instanceof Error ? err.message : 'שגיאה לא ידועה בסנכרון')
     } finally {
@@ -170,6 +176,7 @@ export function useTradingData(settings: AppSettings) {
         equity: null,
         currentPrice: null,
         accruedCommission: settings.commissionPerAction,
+        isFavorite: false,
       }
 
       const newExecution: Execution = {
@@ -397,6 +404,7 @@ export function useTradingData(settings: AppSettings) {
         chartUrl: input.chartUrl ?? pos.chartUrl,
         currentPrice: input.currentPrice !== undefined ? input.currentPrice : pos.currentPrice,
         stopLoss: input.stopLoss ?? pos.stopLoss,
+        isFavorite: input.isFavorite ?? pos.isFavorite,
       }
 
       const nextPositions = positions.map((p) => (p.tradeId === pos.tradeId ? updatedPosition : p))
@@ -412,10 +420,20 @@ export function useTradingData(settings: AppSettings) {
         chartUrl: input.chartUrl,
         currentPrice: input.currentPrice,
         stopLoss: input.stopLoss,
+        isFavorite: input.isFavorite,
       })
       await refresh()
     },
     [positions, executions, persistLocal, settings.webAppUrl, refresh],
+  )
+
+  const toggleFavorite = React.useCallback(
+    async (tradeId: string) => {
+      const pos = positions.find((p) => p.tradeId === tradeId)
+      if (!pos) throw new Error('פוזיציה לא נמצאה')
+      await updatePosition({ tradeId, isFavorite: !pos.isFavorite })
+    },
+    [positions, updatePosition],
   )
 
   const deletePosition = React.useCallback(
@@ -519,10 +537,25 @@ export function useTradingData(settings: AppSettings) {
     [watchlist, persistWatchlist, settings.webAppUrl, refresh],
   )
 
+  const saveNotes = React.useCallback(
+    async (input: GeneralNotes) => {
+      setNotes(input)
+      saveLocalNotes(input)
+
+      await postAction(settings.webAppUrl, {
+        action: 'saveNotes',
+        generalNotes: input.generalNotes,
+        tradingRules: input.tradingRules,
+      })
+    },
+    [settings.webAppUrl],
+  )
+
   return {
     positions,
     executions,
     watchlist,
+    notes,
     loading,
     syncError,
     refresh,
@@ -531,9 +564,11 @@ export function useTradingData(settings: AppSettings) {
     trimPosition,
     closeTrade,
     updatePosition,
+    toggleFavorite,
     deletePosition,
     addToWatchlist,
     updateWatchlistItem,
     deleteFromWatchlist,
+    saveNotes,
   }
 }

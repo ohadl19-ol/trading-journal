@@ -38,6 +38,10 @@ export function filterPositionsByDate(positions: Position[], filter: DateRangeFi
       from = new Date(now.getFullYear(), now.getMonth(), 1)
       to = new Date(now.getFullYear(), now.getMonth() + 1, 1)
       break
+    case 'lastMonth':
+      from = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+      to = new Date(now.getFullYear(), now.getMonth(), 1)
+      break
     case 'year':
       from = new Date(now.getFullYear(), 0, 1)
       to = new Date(now.getFullYear() + 1, 0, 1)

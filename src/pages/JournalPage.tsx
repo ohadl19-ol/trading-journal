@@ -1,12 +1,14 @@
 import * as React from 'react'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, Download } from 'lucide-react'
 import { PositionCard } from '@/components/PositionCard'
 import { PositionDialogs } from '@/components/PositionDialogs'
 import { DateRangeFilterBar } from '@/components/DateRangeFilterBar'
 import { Select } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { useToast } from '@/components/ui/toast'
 import { filterPositionsByDate, getAvailableYears } from '@/lib/dateFilter'
+import { exportFilteredCsv } from '@/lib/csvExport'
 import { PATTERN_OPTIONS, type DateRangeFilter, type Execution, type Position } from '@/types'
 import type {
   AddSharesInput,
@@ -25,6 +27,7 @@ interface JournalPageProps {
   onCloseTrade: (input: CloseInput) => Promise<void>
   onUpdate: (input: UpdatePositionInput) => Promise<void>
   onDelete: (tradeId: string) => Promise<void>
+  onToggleFavorite: (tradeId: string) => Promise<void>
   filter: DateRangeFilter
   onFilterChange: (filter: DateRangeFilter) => void
 }
@@ -39,9 +42,11 @@ export function JournalPage({
   onCloseTrade,
   onUpdate,
   onDelete,
+  onToggleFavorite,
   filter,
   onFilterChange,
 }: JournalPageProps) {
+  const { toast } = useToast()
   const [searchText, setSearchText] = React.useState('')
   const [statusFilter, setStatusFilter] = React.useState('')
   const [patternFilter, setPatternFilter] = React.useState('')
@@ -63,6 +68,8 @@ export function JournalPage({
       }
       if (statusFilter === 'WIN' || statusFilter === 'LOSS') {
         if (p.winLoss !== statusFilter) return false
+      } else if (statusFilter === 'FAVORITE') {
+        if (!p.isFavorite) return false
       } else if (statusFilter && p.status !== statusFilter) {
         return false
       }
@@ -89,6 +96,15 @@ export function JournalPage({
     return map
   }, [executions])
 
+  function handleExportFiltered() {
+    if (sorted.length === 0) {
+      toast('אין עסקאות בסינון הנוכחי לייצוא', 'error')
+      return
+    }
+    exportFilteredCsv(sorted, executions)
+    toast(`יוצאו ${sorted.length} עסקאות מהסינון הנוכחי`)
+  }
+
   return (
     <div className="space-y-4">
       <DateRangeFilterBar
@@ -96,10 +112,16 @@ export function JournalPage({
         onFilterChange={onFilterChange}
         availableYears={filterYears}
         trailing={
-          <Button size="sm" variant="ghost" onClick={onRefresh} disabled={loading}>
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-            רענן
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="ghost" onClick={handleExportFiltered}>
+              <Download className="h-3.5 w-3.5" />
+              ייצוא מסונן ({sorted.length})
+            </Button>
+            <Button size="sm" variant="ghost" onClick={onRefresh} disabled={loading}>
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+              רענן
+            </Button>
+          </div>
         }
       />
 
@@ -117,6 +139,7 @@ export function JournalPage({
             <option value="סגורה">סגורה</option>
             <option value="WIN">WIN</option>
             <option value="LOSS">LOSS</option>
+            <option value="FAVORITE">⭐ מועדפות</option>
           </Select>
           <Select value={patternFilter} onChange={(e) => setPatternFilter(e.target.value)}>
             <option value="">כל סוגי הגרף</option>
@@ -146,6 +169,7 @@ export function JournalPage({
             onEditChart={() => setDialogState({ position, mode: 'chart' })}
             onEditDetails={() => setDialogState({ position, mode: 'edit' })}
             onDelete={() => setDialogState({ position, mode: 'delete' })}
+            onToggleFavorite={() => onToggleFavorite(position.tradeId)}
           />
         ))}
       </div>

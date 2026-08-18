@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { ChevronDown, ExternalLink, Image as ImageIcon, Link as LinkIcon, PlusCircle, MinusCircle, XCircle, Pencil, Trash2, AlertOctagon, TrendingUp } from 'lucide-react'
+import { ChevronDown, ExternalLink, Image as ImageIcon, Link as LinkIcon, PlusCircle, MinusCircle, XCircle, Pencil, Trash2, AlertOctagon, TrendingUp, Star } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,7 @@ interface PositionCardProps {
   onEditChart: () => void
   onEditDetails: () => void
   onDelete: () => void
+  onToggleFavorite: () => void
 }
 
 const statusVariant = {
@@ -34,6 +35,7 @@ export function PositionCard({
   onEditChart,
   onEditDetails,
   onDelete,
+  onToggleFavorite,
 }: PositionCardProps) {
   const [expanded, setExpanded] = React.useState(false)
   const isOpen = position.status !== 'סגורה'
@@ -88,6 +90,16 @@ export function PositionCard({
 
             <div>
               <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={onToggleFavorite}
+                  className={cn(
+                    'shrink-0 transition-colors',
+                    position.isFavorite ? 'text-warn' : 'text-text-muted hover:text-warn',
+                  )}
+                  title={position.isFavorite ? 'הסר מהמועדפים' : 'סמן כמועדף'}
+                >
+                  <Star className="h-4 w-4" fill={position.isFavorite ? 'currentColor' : 'none'} />
+                </button>
                 <span className="text-lg font-bold">{position.symbol}</span>
                 <a
                   href={tradingViewSymbolUrl(position.symbol)}

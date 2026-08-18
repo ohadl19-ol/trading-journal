@@ -1,9 +1,15 @@
 import type { Execution, Position, WatchlistItem } from '@/types'
 
+export interface GeneralNotes {
+  generalNotes: string
+  tradingRules: string
+}
+
 export interface GetDataResponse {
   trades: Position[]
   executions: Execution[]
   watchlist: WatchlistItem[]
+  notes: GeneralNotes
 }
 
 export type ActionPayload =
@@ -16,6 +22,7 @@ export type ActionPayload =
   | { action: 'watchlistAdd'; [key: string]: unknown }
   | { action: 'watchlistUpdate'; [key: string]: unknown }
   | { action: 'watchlistDelete'; [key: string]: unknown }
+  | { action: 'saveNotes'; [key: string]: unknown }
 
 /**
  * שולח פעולה (POST) אל ה-Google Apps Script Web App.
@@ -54,6 +61,7 @@ export async function fetchData(webAppUrl: string): Promise<GetDataResponse> {
     trades: data.trades ?? [],
     executions: data.executions ?? [],
     watchlist: data.watchlist ?? [],
+    notes: data.notes ?? { generalNotes: '', tradingRules: '' },
   }
 }
 

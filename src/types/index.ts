@@ -63,6 +63,7 @@ export interface Position {
   equity: number | null // שווי מצטבר (equity)
   currentPrice: number | null // מחיר נוכחי (עדכון ידני, לחישוב רווח/הפסד לא ממומש בפוזיציה פתוחה)
   accruedCommission: number // עמלות שנצברו וטרם נוכו (מהכניסה + כל חיזוק), מסולקות במלואן בסגירה הסופית
+  isFavorite: boolean // עסקה מסומנת בכוכבית ללמידה/סקירה
 }
 
 // ==== לשונית "פעולות" ====
@@ -115,7 +116,7 @@ export interface CalculatorResult {
 }
 
 export interface DateRangeFilter {
-  preset: 'week' | 'month' | 'year' | 'all' | 'custom' | 'monthYear' | 'yearSpecific'
+  preset: 'week' | 'month' | 'lastMonth' | 'year' | 'all' | 'custom' | 'monthYear' | 'yearSpecific'
   from?: string
   to?: string
   month?: number // 0-11

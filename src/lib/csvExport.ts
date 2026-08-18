@@ -36,7 +36,7 @@ const POSITIONS_HEADERS = [
   'גודל פוזיציה נוכחי $', '% פוזיציה מהחשבון', '% סיכון מהחשבון', 'יחס R/R מתוכנן',
   'יעד 2R', 'יעד 3R', 'יתרת חשבון', 'רווח/הפסד ממומש $', 'R ממומש', 'תוצאה', 'WIN/LOSS',
   'קטגוריה/תגית', 'תאריך סגירה', 'סיבת כניסה/סטאפ', 'קישור צ׳ארט', 'הערות',
-  'שווי מצטבר', 'מחיר נוכחי', 'עמלות שנצברו',
+  'שווי מצטבר', 'מחיר נוכחי', 'עמלות שנצברו', 'מועדף',
 ]
 
 function positionToRow(p: Position): unknown[] {
@@ -46,7 +46,7 @@ function positionToRow(p: Position): unknown[] {
     p.currentPositionSize, p.accountPercentage, p.riskPercentage, p.plannedRR,
     p.target2R, p.target3R, p.accountBalance, p.realizedPnl, p.realizedR, p.outcome,
     p.winLoss, p.category, p.closeDate, p.setupReason, p.chartUrl, p.notes, p.equity,
-    p.currentPrice, p.accruedCommission,
+    p.currentPrice, p.accruedCommission, p.isFavorite,
   ]
 }
 
@@ -64,14 +64,29 @@ function executionToRow(e: Execution): unknown[] {
 
 /** מייצא את כל הפוזיציות והפעולות לקובץ CSV אחד לגיבוי מקומי עצמאי */
 export function exportBackupCsv(positions: Position[], executions: Execution[]) {
+  exportPositionsCsv(positions, executions, 'יומן-מסחר')
+}
+
+/**
+ * מייצא רק את הפוזיציות שמוצגות כרגע (אחרי סינון) + הפעולות שלהן — כדי לאפשר
+ * הורדה קלה של תת-קבוצה ספציפית (למשל "כל מה שהרווחתי בחודש שעבר") להעברה
+ * לניתוח חיצוני (כמו ChatGPT).
+ */
+export function exportFilteredCsv(filteredPositions: Position[], allExecutions: Execution[]) {
+  const tradeIds = new Set(filteredPositions.map((p) => p.tradeId))
+  const filteredExecutions = allExecutions.filter((e) => tradeIds.has(e.tradeId))
+  exportPositionsCsv(filteredPositions, filteredExecutions, 'יומן-מסחר-מסונן')
+}
+
+function exportPositionsCsv(positions: Position[], executions: Execution[], filePrefix: string) {
   const date = new Date().toISOString().slice(0, 10)
 
   downloadCsv(
-    `יומן-מסחר-פוזיציות-${date}.csv`,
+    `${filePrefix}-פוזיציות-${date}.csv`,
     toCsv(POSITIONS_HEADERS, positions.map(positionToRow)),
   )
   downloadCsv(
-    `יומן-מסחר-פעולות-${date}.csv`,
+    `${filePrefix}-פעולות-${date}.csv`,
     toCsv(EXECUTIONS_HEADERS, executions.map(executionToRow)),
   )
 }

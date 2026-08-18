@@ -1,11 +1,15 @@
 import type { AppSettings, Execution, Position, WatchlistItem } from '@/types'
+import type { GeneralNotes } from '@/lib/api'
 
 const KEYS = {
   settings: 'tj_settings',
   positions: 'tj_positions',
   executions: 'tj_executions',
   watchlist: 'tj_watchlist',
+  notes: 'tj_notes',
 } as const
+
+const DEFAULT_NOTES: GeneralNotes = { generalNotes: '', tradingRules: '' }
 
 export const DEFAULT_SETTINGS: AppSettings = {
   webAppUrl: '',
@@ -66,4 +70,17 @@ export function loadLocalWatchlist(): WatchlistItem[] {
 
 export function saveLocalWatchlist(watchlist: WatchlistItem[]) {
   localStorage.setItem(KEYS.watchlist, JSON.stringify(watchlist))
+}
+
+export function loadLocalNotes(): GeneralNotes {
+  try {
+    const raw = localStorage.getItem(KEYS.notes)
+    return raw ? { ...DEFAULT_NOTES, ...JSON.parse(raw) } : DEFAULT_NOTES
+  } catch {
+    return DEFAULT_NOTES
+  }
+}
+
+export function saveLocalNotes(notes: GeneralNotes) {
+  localStorage.setItem(KEYS.notes, JSON.stringify(notes))
 }

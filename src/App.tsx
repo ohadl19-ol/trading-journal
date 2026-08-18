@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Calculator, BookOpen, BarChart3, Settings as SettingsIcon, LineChart, BookMarked, Eye } from 'lucide-react'
+import { Calculator, BookOpen, BarChart3, Settings as SettingsIcon, LineChart, BookMarked, Eye, NotebookPen } from 'lucide-react'
 import { Tabs } from '@/components/ui/tabs'
 import { ToastProvider } from '@/components/ui/toast'
 import { CalculatorPage } from '@/pages/CalculatorPage'
@@ -8,13 +8,14 @@ import { StatisticsPage } from '@/pages/StatisticsPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { PatternsGuidePage } from '@/pages/PatternsGuidePage'
 import { WatchlistPage } from '@/pages/WatchlistPage'
+import { NotesPage } from '@/pages/NotesPage'
 import { useTradingData } from '@/hooks/useTradingData'
 import { loadSettings, saveSettings } from '@/lib/storage'
 import { computeEquitySummary } from '@/lib/statistics'
 import { getStoredTheme, applyTheme, type Theme } from '@/lib/theme'
 import type { AppSettings, DateRangeFilter } from '@/types'
 
-type TabValue = 'calculator' | 'journal' | 'statistics' | 'patterns' | 'watchlist' | 'settings'
+type TabValue = 'calculator' | 'journal' | 'statistics' | 'patterns' | 'watchlist' | 'notes' | 'settings'
 
 function AppShell() {
   const [tab, setTab] = React.useState<TabValue>('calculator')
@@ -28,6 +29,7 @@ function AppShell() {
     positions,
     executions,
     watchlist,
+    notes,
     loading,
     syncError,
     refresh,
@@ -36,10 +38,12 @@ function AppShell() {
     trimPosition,
     closeTrade,
     updatePosition,
+    toggleFavorite,
     deletePosition,
     addToWatchlist,
     updateWatchlistItem,
     deleteFromWatchlist,
+    saveNotes,
   } = useTradingData(settings)
 
   const currentEquity = React.useMemo(
@@ -93,6 +97,7 @@ function AppShell() {
             { value: 'statistics', label: 'סטטיסטיקה', icon: <BarChart3 className="h-4 w-4" /> },
             { value: 'patterns', label: 'מדריך תבניות', icon: <BookMarked className="h-4 w-4" /> },
             { value: 'watchlist', label: 'רשימת מעקב', icon: <Eye className="h-4 w-4" /> },
+            { value: 'notes', label: 'הערות וכללים', icon: <NotebookPen className="h-4 w-4" /> },
           ]}
         />
 
@@ -110,6 +115,7 @@ function AppShell() {
             onCloseTrade={closeTrade}
             onUpdate={updatePosition}
             onDelete={deletePosition}
+            onToggleFavorite={toggleFavorite}
             filter={filter}
             onFilterChange={setFilter}
           />
@@ -131,6 +137,7 @@ function AppShell() {
             onDelete={deleteFromWatchlist}
           />
         )}
+        {tab === 'notes' && <NotesPage notes={notes} onSave={saveNotes} />}
         {tab === 'settings' && (
           <SettingsPage
             settings={settings}

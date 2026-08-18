@@ -14,6 +14,7 @@ interface DateRangeFilterBarProps {
 const PRESETS: { value: DateRangeFilter['preset']; label: string }[] = [
   { value: 'week', label: 'שבוע נוכחי' },
   { value: 'month', label: 'חודש נוכחי' },
+  { value: 'lastMonth', label: 'חודש קודם' },
   { value: 'year', label: 'שנה נוכחית' },
   { value: 'yearSpecific', label: 'שנה ספציפית' },
   { value: 'all', label: 'הכול' },

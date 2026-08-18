@@ -9,6 +9,7 @@ var POSITIONS_SHEET_NAME = 'פוזיציות';
 var EXECUTIONS_SHEET_NAME = 'פעולות';
 var STATS_SHEET_NAME = 'סטטיסטיקה';
 var WATCHLIST_SHEET_NAME = 'רשימת מעקב';
+var NOTES_SHEET_NAME = 'הערות ותוכנית מסחר';
 
 // כותרות לשונית "רשימת מעקב"
 var WATCHLIST_HEADERS = [
@@ -24,7 +25,7 @@ var POSITIONS_HEADERS = [
   '% סיכון מהחשבון', 'יחס R/R מתוכנן', 'יעד 2R', 'יעד 3R', 'יתרת חשבון',
   'רווח/הפסד ממומש $', 'R ממומש', 'תוצאה (Outcome)', 'WIN/LOSS',
   'קטגוריה/תגית', 'תאריך סגירה', 'סיבת כניסה/סטאפ', 'קישור צ\'ארט הפוזיציה',
-  'הערות', 'שווי מצטבר (equity)', 'מחיר נוכחי (לא ממומש)', 'עמלות שנצברו $',
+  'הערות', 'שווי מצטבר (equity)', 'מחיר נוכחי (לא ממומש)', 'עמלות שנצברו $', 'מועדף',
 ];
 
 // כותרות לשונית "פעולות"
@@ -42,7 +43,8 @@ function doGet(e) {
   var trades = readPositions_();
   var executions = readExecutions_();
   var watchlist = readWatchlist_();
-  var payload = { trades: trades, executions: executions, watchlist: watchlist };
+  var notes = readGeneralNotes_();
+  var payload = { trades: trades, executions: executions, watchlist: watchlist, notes: notes };
 
   if (e && e.parameter && e.parameter.callback) {
     return ContentService
@@ -86,6 +88,9 @@ function doPost(e) {
         break;
       case 'watchlistDelete':
         result = handleWatchlistDelete_(body);
+        break;
+      case 'saveNotes':
+        result = handleSaveNotes_(body);
         break;
       default:
         throw new Error('פעולה לא ידועה: ' + body.action);
@@ -131,6 +136,7 @@ function handleOpen_(body) {
   setByHeader_(row, 'קישור צ\'ארט הפוזיציה', body.chartUrl);
   // עמלת הכניסה נצברת ותסולק בפועל רק כשהפוזיציה תיסגר סופית
   setByHeader_(row, 'עמלות שנצברו $', Number(body.commissionPerAction) || 0);
+  setByHeader_(row, 'מועדף', false);
 
   appendRow_(sheet, POSITIONS_HEADERS, row);
   setLivePriceFormula_(sheet, sheet.getLastRow());
@@ -319,6 +325,9 @@ function handleUpdate_(body) {
     // תיקון/מיגרציה חד-פעמית לעמלות שנצברו — משמש בעיקר לפוזיציות שנפתחו לפני שהתחלנו לעקוב אחרי עמלות
     updateCell_(sheet, rowIndex, 'עמלות שנצברו $', body.accruedCommission);
   }
+  if (body.isFavorite !== undefined && body.isFavorite !== null) {
+    updateCell_(sheet, rowIndex, 'מועדף', body.isFavorite);
+  }
 
   return { tradeId: body.tradeId };
 }
@@ -505,6 +514,44 @@ function checkWatchlistAlerts_() {
   }
 }
 
+// ==================== הערות כלליות + כללי מסחר ====================
+
+/**
+ * לשונית פשוטה בת 2 שורות: A1/B1 = הערות כלליות, A2/B2 = כללי מסחר (תוכנית מסחר).
+ * נוצרת אוטומטית בפעם הראשונה שנשמר משהו.
+ */
+function getNotesSheet_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(NOTES_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(NOTES_SHEET_NAME);
+    sheet.getRange('A1').setValue('הערות כלליות').setFontWeight('bold');
+    sheet.getRange('A2').setValue('כללי מסחר (תוכנית מסחר)').setFontWeight('bold');
+    sheet.setColumnWidth(1, 200);
+    sheet.setColumnWidth(2, 600);
+  }
+  return sheet;
+}
+
+function readGeneralNotes_() {
+  var sheet = getNotesSheet_();
+  return {
+    generalNotes: sheet.getRange('B1').getValue() || '',
+    tradingRules: sheet.getRange('B2').getValue() || '',
+  };
+}
+
+function handleSaveNotes_(body) {
+  var sheet = getNotesSheet_();
+  if (body.generalNotes !== undefined && body.generalNotes !== null) {
+    sheet.getRange('B1').setValue(body.generalNotes);
+  }
+  if (body.tradingRules !== undefined && body.tradingRules !== null) {
+    sheet.getRange('B2').setValue(body.tradingRules);
+  }
+  return { status: 'saved' };
+}
+
 // ==================== חישוב equity מצטבר ====================
 
 function recalcEquity_() {
@@ -598,6 +645,7 @@ function readPositions_() {
       equity: row[27] === '' ? null : Number(row[27]),
       currentPrice: row[28] === '' || row[28] === undefined ? null : Number(row[28]),
       accruedCommission: Number(row[29]) || 0,
+      isFavorite: row[30] === true,
     };
   });
 }
