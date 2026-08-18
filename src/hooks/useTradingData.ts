@@ -150,6 +150,7 @@ export function useTradingData(settings: AppSettings) {
         notes: '',
         equity: null,
         currentPrice: null,
+        accruedCommission: settings.commissionPerAction,
       }
 
       const newExecution: Execution = {
@@ -191,10 +192,11 @@ export function useTradingData(settings: AppSettings) {
         target3R: calc.price3R,
         setupReason: input.setupReason,
         chartUrl: input.chartUrl,
+        commissionPerAction: settings.commissionPerAction,
       })
       await refresh()
     },
-    [positions, executions, persistLocal, settings.webAppUrl, refresh],
+    [positions, executions, persistLocal, settings.webAppUrl, settings.commissionPerAction, refresh],
   )
 
   const addShares = React.useCallback(
@@ -213,6 +215,7 @@ export function useTradingData(settings: AppSettings) {
         originalShares: pos.originalShares + input.shares,
         avgEntryPrice: newAvg,
         currentPositionSize: newShares * newAvg,
+        accruedCommission: pos.accruedCommission + settings.commissionPerAction,
       }
       const newExecution: Execution = {
         execId: generateId('E'),
@@ -240,10 +243,11 @@ export function useTradingData(settings: AppSettings) {
         shares: input.shares,
         notes: input.notes,
         timestamp,
+        commissionPerAction: settings.commissionPerAction,
       })
       await refresh()
     },
-    [positions, executions, persistLocal, settings.webAppUrl, refresh],
+    [positions, executions, persistLocal, settings.webAppUrl, settings.commissionPerAction, refresh],
   )
 
   const trimPosition = React.useCallback(
@@ -254,7 +258,9 @@ export function useTradingData(settings: AppSettings) {
         throw new Error('למכירה חלקית הכמות חייבת להיות קטנה מהכמות הנוכחית')
       }
 
-      const pnlInAction = input.shares * (input.price - pos.avgEntryPrice) - settings.commissionPerTrade
+      // מכירה חלקית מנכה רק את העמלה של הפעולה הזו עצמה; העמלה שנצברה מהכניסה/חיזוקים
+      // נשארת ל"עמלות שנצברו" ותסולק במלואה בסגירה הסופית
+      const pnlInAction = input.shares * (input.price - pos.avgEntryPrice) - settings.commissionPerAction
       const timestamp = nowIso()
 
       const updatedPosition: Position = {
@@ -290,11 +296,11 @@ export function useTradingData(settings: AppSettings) {
         shares: input.shares,
         notes: input.notes,
         timestamp,
-        commissionPerTrade: settings.commissionPerTrade,
+        commissionPerAction: settings.commissionPerAction,
       })
       await refresh()
     },
-    [positions, executions, persistLocal, settings.webAppUrl, settings.commissionPerTrade, refresh],
+    [positions, executions, persistLocal, settings.webAppUrl, settings.commissionPerAction, refresh],
   )
 
   const closeTrade = React.useCallback(
@@ -302,7 +308,10 @@ export function useTradingData(settings: AppSettings) {
       const pos = positions.find((p) => p.tradeId === input.tradeId)
       if (!pos) throw new Error('פוזיציה לא נמצאה')
 
-      const pnlInAction = pos.currentShares * (input.price - pos.avgEntryPrice) - settings.commissionPerTrade
+      // הסגירה הסופית מסלקת גם את העמלה של פעולת הסגירה עצמה וגם את כל העמלות שנצברו
+      // מהכניסה ומכל חיזוק לאורך חיי הפוזיציה (ולא סולקו עדיין ע"י מכירות חלקיות)
+      const pnlInAction =
+        pos.currentShares * (input.price - pos.avgEntryPrice) - settings.commissionPerAction - pos.accruedCommission
       const totalRealizedPnl = pos.realizedPnl + pnlInAction
       const realizedR = pos.riskAmount > 0 ? totalRealizedPnl / pos.riskAmount : null
       const timestamp = nowIso()
@@ -319,6 +328,7 @@ export function useTradingData(settings: AppSettings) {
         closeDate: timestamp,
         currentPositionSize: 0,
         notes: input.notes ? `${pos.notes ? pos.notes + ' | ' : ''}${input.notes}` : pos.notes,
+        accruedCommission: 0,
       }
       const newExecution: Execution = {
         execId: generateId('E'),
@@ -348,11 +358,11 @@ export function useTradingData(settings: AppSettings) {
         category: input.category,
         notes: input.notes,
         timestamp,
-        commissionPerTrade: settings.commissionPerTrade,
+        commissionPerAction: settings.commissionPerAction,
       })
       await refresh()
     },
-    [positions, executions, persistLocal, settings.webAppUrl, settings.initialCapital, settings.commissionPerTrade, refresh],
+    [positions, executions, persistLocal, settings.webAppUrl, settings.initialCapital, settings.commissionPerAction, refresh],
   )
 
   const updatePosition = React.useCallback(

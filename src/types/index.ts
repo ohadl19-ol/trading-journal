@@ -62,6 +62,7 @@ export interface Position {
   notes: string // הערות
   equity: number | null // שווי מצטבר (equity)
   currentPrice: number | null // מחיר נוכחי (עדכון ידני, לחישוב רווח/הפסד לא ממומש בפוזיציה פתוחה)
+  accruedCommission: number // עמלות שנצברו וטרם נוכו (מהכניסה + כל חיזוק), מסולקות במלואן בסגירה הסופית
 }
 
 // ==== לשונית "פעולות" ====
@@ -84,8 +85,8 @@ export interface AppSettings {
   initialCapital: number
   defaultAccountBalance: number
   defaultRiskAmount: number
-  /** עמלה קבועה ($) שמנוכה אוטומטית מהרווח/הפסד בכל מכירה חלקית וסגירת עסקה */
-  commissionPerTrade: number
+  /** עמלה קבועה ($) לכל פעולת קנייה/מכירה בודדת (כניסה, חיזוק, מכירה חלקית, סגירה) */
+  commissionPerAction: number
 }
 
 export interface CalculatorResult {

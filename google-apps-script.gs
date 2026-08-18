@@ -17,7 +17,7 @@ var POSITIONS_HEADERS = [
   '% סיכון מהחשבון', 'יחס R/R מתוכנן', 'יעד 2R', 'יעד 3R', 'יתרת חשבון',
   'רווח/הפסד ממומש $', 'R ממומש', 'תוצאה (Outcome)', 'WIN/LOSS',
   'קטגוריה/תגית', 'תאריך סגירה', 'סיבת כניסה/סטאפ', 'קישור צ\'ארט הפוזיציה',
-  'הערות', 'שווי מצטבר (equity)', 'מחיר נוכחי (לא ממומש)',
+  'הערות', 'שווי מצטבר (equity)', 'מחיר נוכחי (לא ממומש)', 'עמלות שנצברו $',
 ];
 
 // כותרות לשונית "פעולות"
@@ -111,6 +111,8 @@ function handleOpen_(body) {
   setByHeader_(row, 'רווח/הפסד ממומש $', 0);
   setByHeader_(row, 'סיבת כניסה/סטאפ', body.setupReason);
   setByHeader_(row, 'קישור צ\'ארט הפוזיציה', body.chartUrl);
+  // עמלת הכניסה נצברת ותסולק בפועל רק כשהפוזיציה תיסגר סופית
+  setByHeader_(row, 'עמלות שנצברו $', Number(body.commissionPerAction) || 0);
 
   appendRow_(sheet, POSITIONS_HEADERS, row);
   setLivePriceFormula_(sheet, sheet.getLastRow());
@@ -147,10 +149,13 @@ function handleAdd_(body) {
   var newAvg = (currentShares * avgEntry + addShares * addPrice) / newShares;
   var now = body.timestamp || new Date().toISOString();
 
+  var newAccruedCommission = (Number(current['עמלות שנצברו $']) || 0) + (Number(body.commissionPerAction) || 0);
+
   updateCell_(sheet, rowIndex, 'כמות מניות נוכחית', newShares);
   updateCell_(sheet, rowIndex, 'כמות מניות מקורית', (Number(current['כמות מניות מקורית']) || 0) + addShares);
   updateCell_(sheet, rowIndex, 'מחיר כניסה ממוצע', newAvg);
   updateCell_(sheet, rowIndex, 'גודל פוזיציה נוכחי $', newShares * newAvg);
+  updateCell_(sheet, rowIndex, 'עמלות שנצברו $', newAccruedCommission);
 
   addExecutionRow_({
     execId: 'E-' + Utilities.getUuid().slice(0, 8),
@@ -181,8 +186,9 @@ function handleTrim_(body) {
 
   if (sellShares >= currentShares) throw new Error('כמות המכירה חייבת להיות קטנה מהכמות הנוכחית');
 
-  // עמלה קבועה (מוגדרת בהגדרות האפליקציה) מנוכה מכל מכירה/סגירה בנפרד
-  var commission = Number(body.commissionPerTrade) || 0;
+  // מכירה חלקית מנכה רק את עמלת הפעולה הזו עצמה; מה שנצבר מהכניסה/חיזוקים
+  // נשאר ב"עמלות שנצברו" ויסולק במלואו בסגירה הסופית
+  var commission = Number(body.commissionPerAction) || 0;
   var pnlInAction = sellShares * (sellPrice - avgEntry) - commission;
   var newRealizedPnl = (Number(current['רווח/הפסד ממומש $']) || 0) + pnlInAction;
   var newShares = currentShares - sellShares;
@@ -220,9 +226,11 @@ function handleClose_(body) {
   var closePrice = Number(body.price) || 0;
   var riskAmount = Number(current['סכום סיכון $']) || 0;
 
-  // עמלה קבועה (מוגדרת בהגדרות האפליקציה) מנוכה מכל מכירה/סגירה בנפרד
-  var commission = Number(body.commissionPerTrade) || 0;
-  var pnlInAction = currentShares * (closePrice - avgEntry) - commission;
+  // הסגירה הסופית מסלקת גם את עמלת הסגירה עצמה וגם את כל העמלות שנצברו לאורך
+  // חיי הפוזיציה (כניסה + כל חיזוק) שעדיין לא נוכו ע"י מכירות חלקיות קודמות
+  var commission = Number(body.commissionPerAction) || 0;
+  var accruedCommission = Number(current['עמלות שנצברו $']) || 0;
+  var pnlInAction = currentShares * (closePrice - avgEntry) - commission - accruedCommission;
   var totalRealizedPnl = (Number(current['רווח/הפסד ממומש $']) || 0) + pnlInAction;
   var realizedR = riskAmount > 0 ? totalRealizedPnl / riskAmount : '';
   var now = body.timestamp || new Date().toISOString();
@@ -237,6 +245,7 @@ function handleClose_(body) {
   updateCell_(sheet, rowIndex, 'תאריך סגירה', now);
   updateCell_(sheet, rowIndex, 'גודל פוזיציה נוכחי $', 0);
   updateCell_(sheet, rowIndex, 'מחיר נוכחי (לא ממומש)', ''); // אין עוד רלוונטיות אחרי סגירה
+  updateCell_(sheet, rowIndex, 'עמלות שנצברו $', 0); // סולקו במלואן
   if (body.notes) {
     var prevNotes = current['הערות'] || '';
     updateCell_(sheet, rowIndex, 'הערות', prevNotes ? prevNotes + ' | ' + body.notes : body.notes);
@@ -287,6 +296,10 @@ function handleUpdate_(body) {
   }
   if (body.stopLoss !== undefined && body.stopLoss !== null) {
     updateCell_(sheet, rowIndex, 'מחיר סטופ לוס', body.stopLoss);
+  }
+  if (body.accruedCommission !== undefined && body.accruedCommission !== null) {
+    // תיקון/מיגרציה חד-פעמית לעמלות שנצברו — משמש בעיקר לפוזיציות שנפתחו לפני שהתחלנו לעקוב אחרי עמלות
+    updateCell_(sheet, rowIndex, 'עמלות שנצברו $', body.accruedCommission);
   }
 
   return { tradeId: body.tradeId };
@@ -425,6 +438,7 @@ function readPositions_() {
       notes: row[26],
       equity: row[27] === '' ? null : Number(row[27]),
       currentPrice: row[28] === '' || row[28] === undefined ? null : Number(row[28]),
+      accruedCommission: Number(row[29]) || 0,
     };
   });
 }

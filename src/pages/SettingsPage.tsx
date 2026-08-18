@@ -102,14 +102,15 @@ export function SettingsPage({ settings, onSave, positions, executions }: Settin
             />
           </div>
           <div>
-            <Label>עמלה קבועה לעסקה ($)</Label>
+            <Label>עמלה קבועה לפעולה ($)</Label>
             <Input
               type="number"
-              value={form.commissionPerTrade}
-              onChange={(e) => setForm({ ...form, commissionPerTrade: Number(e.target.value) })}
+              value={form.commissionPerAction}
+              onChange={(e) => setForm({ ...form, commissionPerAction: Number(e.target.value) })}
             />
             <p className="mt-1 text-xs text-text-muted">
-              מנוכה אוטומטית מהרווח/הפסד בכל מכירה חלקית וסגירת עסקה (0 = בלי עמלה).
+              מנוכה אוטומטית על כל פעולת קנייה/מכירה בנפרד — כניסה, חיזוק, מכירה חלקית וסגירה (0 = בלי עמלה).
+              למשל אם הברוקר גובה 1.50$ לפעולה, עסקת כניסה+סגירה פשוטה תעלה בסך הכול 3$.
             </p>
           </div>
         </CardContent>

@@ -11,7 +11,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   initialCapital: 4455.21,
   defaultAccountBalance: 4455.21,
   defaultRiskAmount: 50,
-  commissionPerTrade: 0,
+  commissionPerAction: 0,
 }
 
 export function loadSettings(): AppSettings {
