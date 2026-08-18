@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Calculator, BookOpen, BarChart3, Settings as SettingsIcon, LineChart, BookMarked, Sun, Moon } from 'lucide-react'
+import { Calculator, BookOpen, BarChart3, Settings as SettingsIcon, LineChart, BookMarked } from 'lucide-react'
 import { Tabs } from '@/components/ui/tabs'
 import { ToastProvider } from '@/components/ui/toast'
 import { CalculatorPage } from '@/pages/CalculatorPage'
@@ -69,11 +69,11 @@ function AppShell() {
             </span>
           )}
           <button
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className={`flex h-9 w-9 items-center justify-center rounded-lg border border-border text-text-muted hover:text-text ${settings.webAppUrl && !syncError ? 'mr-auto' : ''}`}
-            title={theme === 'dark' ? 'עבור למצב בהיר' : 'עבור למצב כהה'}
+            onClick={() => setTab('settings')}
+            className={`flex h-9 w-9 items-center justify-center rounded-lg border border-border text-text-muted hover:text-text ${settings.webAppUrl && !syncError ? 'mr-auto' : ''} ${tab === 'settings' ? 'bg-accent/15 text-accent' : ''}`}
+            title="הגדרות"
           >
-            {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            <SettingsIcon className="h-4 w-4" />
           </button>
         </div>
       </header>
@@ -87,7 +87,6 @@ function AppShell() {
             { value: 'journal', label: 'יומן עסקאות', icon: <BookOpen className="h-4 w-4" /> },
             { value: 'statistics', label: 'סטטיסטיקה', icon: <BarChart3 className="h-4 w-4" /> },
             { value: 'patterns', label: 'מדריך תבניות', icon: <BookMarked className="h-4 w-4" /> },
-            { value: 'settings', label: 'הגדרות', icon: <SettingsIcon className="h-4 w-4" /> },
           ]}
         />
 
@@ -124,6 +123,8 @@ function AppShell() {
             onSave={handleSaveSettings}
             positions={positions}
             executions={executions}
+            theme={theme}
+            onThemeChange={setTheme}
           />
         )}
       </main>

@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Wifi, Save, Download } from 'lucide-react'
+import { Wifi, Save, Download, Sun, Moon } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 import { testConnection } from '@/lib/api'
 import { exportBackupCsv } from '@/lib/csvExport'
+import type { Theme } from '@/lib/theme'
 import type { AppSettings, Execution, Position } from '@/types'
 
 interface SettingsPageProps {
@@ -14,9 +15,11 @@ interface SettingsPageProps {
   onSave: (settings: AppSettings) => void
   positions: Position[]
   executions: Execution[]
+  theme: Theme
+  onThemeChange: (theme: Theme) => void
 }
 
-export function SettingsPage({ settings, onSave, positions, executions }: SettingsPageProps) {
+export function SettingsPage({ settings, onSave, positions, executions, theme, onThemeChange }: SettingsPageProps) {
   const { toast } = useToast()
   const [form, setForm] = React.useState<AppSettings>(settings)
   const [testing, setTesting] = React.useState(false)
@@ -49,6 +52,40 @@ export function SettingsPage({ settings, onSave, positions, executions }: Settin
 
   return (
     <div className="mx-auto max-w-xl space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>מראה</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm text-text">מצב תצוגה</div>
+              <div className="text-xs text-text-muted">כהה או בהיר</div>
+            </div>
+            <div className="flex gap-1 rounded-lg bg-surface-2 p-1">
+              <button
+                onClick={() => onThemeChange('dark')}
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  theme === 'dark' ? 'bg-accent text-accent-fg' : 'text-text-muted hover:text-text'
+                }`}
+              >
+                <Moon className="h-3.5 w-3.5" />
+                כהה
+              </button>
+              <button
+                onClick={() => onThemeChange('light')}
+                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  theme === 'light' ? 'bg-accent text-accent-fg' : 'text-text-muted hover:text-text'
+                }`}
+              >
+                <Sun className="h-3.5 w-3.5" />
+                בהיר
+              </button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>חיבור לגיליון (Google Apps Script)</CardTitle>
