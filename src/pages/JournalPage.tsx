@@ -6,7 +6,7 @@ import { DateRangeFilterBar } from '@/components/DateRangeFilterBar'
 import { Select } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { filterPositionsByDate } from '@/lib/dateFilter'
+import { filterPositionsByDate, getAvailableYears } from '@/lib/dateFilter'
 import { PATTERN_OPTIONS, type DateRangeFilter, type Execution, type Position } from '@/types'
 import type {
   AddSharesInput,
@@ -52,6 +52,7 @@ export function JournalPage({
   }>({ position: null, mode: null })
 
   const dateFiltered = React.useMemo(() => filterPositionsByDate(positions, filter), [positions, filter])
+  const filterYears = React.useMemo(() => getAvailableYears(positions), [positions])
 
   const fullyFiltered = React.useMemo(() => {
     const q = searchText.trim().toLowerCase()
@@ -89,6 +90,7 @@ export function JournalPage({
       <DateRangeFilterBar
         filter={filter}
         onFilterChange={onFilterChange}
+        availableYears={filterYears}
         trailing={
           <Button size="sm" variant="ghost" onClick={onRefresh} disabled={loading}>
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />

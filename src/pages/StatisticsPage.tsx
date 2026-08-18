@@ -1,6 +1,8 @@
 import * as React from 'react'
 import { TrendingUp, TrendingDown, Percent, Target, Award, AlertTriangle, Wallet, ArrowDownRight, Flame, Clock } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Dialog } from '@/components/ui/dialog'
+import { Badge } from '@/components/ui/badge'
 import { DateRangeFilterBar } from '@/components/DateRangeFilterBar'
 import { EquityCurveChart } from '@/components/EquityCurveChart'
 import { MonthlyHeatmap } from '@/components/MonthlyHeatmap'
@@ -18,7 +20,7 @@ import {
   type EquityCurveRange,
 } from '@/lib/statistics'
 import { formatCurrency, formatPercentage } from '@/lib/calculations'
-import { filterPositionsByDate } from '@/lib/dateFilter'
+import { filterPositionsByDate, getAvailableYears } from '@/lib/dateFilter'
 import type { DateRangeFilter, Position } from '@/types'
 import { cn } from '@/lib/utils'
 
@@ -44,6 +46,22 @@ export function StatisticsPage({ positions, initialCapital, filter, onFilterChan
   const streaks = React.useMemo(() => computeStreaks(positions), [positions])
   const monthlyPnl = React.useMemo(() => computeMonthlyPnl(positions), [positions])
   const holdingTime = React.useMemo(() => computeHoldingTime(positions), [positions])
+  const filterYears = React.useMemo(() => getAvailableYears(positions), [positions])
+
+  // דריל-דאון: לחיצה על חודש במפת החום מציגה את כל העסקאות שנסגרו באותו חודש
+  const [drilldownMonth, setDrilldownMonth] = React.useState<{ year: number; month: number } | null>(null)
+  const drilldownTrades = React.useMemo(() => {
+    if (!drilldownMonth) return []
+    return positions.filter((p) => {
+      if (p.status !== 'סגורה' || !p.closeDate) return false
+      const d = new Date(p.closeDate)
+      return d.getFullYear() === drilldownMonth.year && d.getMonth() === drilldownMonth.month
+    })
+  }, [positions, drilldownMonth])
+  const MONTH_NAMES_FULL = [
+    'ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני',
+    'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר',
+  ]
 
   // בורר תקופה עצמאי לעקומת ההון בלבד: הכול / שנה ספציפית / רבעון ספציפי
   const { years, quarters } = React.useMemo(() => getAvailableYearsAndQuarters(positions), [positions])
@@ -67,7 +85,7 @@ export function StatisticsPage({ positions, initialCapital, filter, onFilterChan
 
   return (
     <div className="space-y-4">
-      <DateRangeFilterBar filter={filter} onFilterChange={onFilterChange} />
+      <DateRangeFilterBar filter={filter} onFilterChange={onFilterChange} availableYears={filterYears} />
 
       <div className="rounded-xl border border-border bg-surface p-3 text-xs text-text-muted">
         כרטיסי ההון למעלה (הון התחלתי / רווח־הפסד ממומש / לא ממומש / שווי נוכחי / אחוזים) משקפים תמיד את
@@ -229,7 +247,7 @@ export function StatisticsPage({ positions, initialCapital, filter, onFilterChan
           <CardTitle>רווח/הפסד חודשי</CardTitle>
         </CardHeader>
         <CardContent>
-          <MonthlyHeatmap monthly={monthlyPnl} />
+          <MonthlyHeatmap monthly={monthlyPnl} onMonthClick={(year, month) => setDrilldownMonth({ year, month })} />
         </CardContent>
       </Card>
 
@@ -262,6 +280,42 @@ export function StatisticsPage({ positions, initialCapital, filter, onFilterChan
           </CardContent>
         </Card>
       </div>
+
+      {drilldownMonth && (
+        <Dialog
+          open
+          onClose={() => setDrilldownMonth(null)}
+          title={`עסקאות שנסגרו — ${MONTH_NAMES_FULL[drilldownMonth.month]} ${drilldownMonth.year}`}
+          description={`${drilldownTrades.length} עסקאות`}
+        >
+          <div className="space-y-2">
+            {drilldownTrades.length === 0 && (
+              <p className="text-sm text-text-muted">אין עסקאות סגורות בחודש זה</p>
+            )}
+            {[...drilldownTrades]
+              .sort((a, b) => new Date(a.closeDate!).getTime() - new Date(b.closeDate!).getTime())
+              .map((t) => (
+                <div
+                  key={t.tradeId}
+                  className="flex items-center justify-between rounded-lg border border-border bg-surface-2 p-3"
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-text">{t.symbol}</span>
+                      <Badge variant={t.winLoss === 'WIN' ? 'win' : 'loss'}>{t.winLoss}</Badge>
+                    </div>
+                    <div className="mt-0.5 text-xs text-text-muted">
+                      {t.pattern} · נסגר {new Date(t.closeDate!).toLocaleDateString('he-IL')}
+                    </div>
+                  </div>
+                  <div className={cn('num-tabular font-medium', t.realizedPnl >= 0 ? 'text-win' : 'text-loss')}>
+                    {t.realizedPnl >= 0 ? '+' : ''}${formatCurrency(t.realizedPnl)}
+                  </div>
+                </div>
+              ))}
+          </div>
+        </Dialog>
+      )}
     </div>
   )
 }

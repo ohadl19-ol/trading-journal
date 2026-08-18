@@ -100,7 +100,7 @@ export interface CalculatorResult {
 }
 
 export interface DateRangeFilter {
-  preset: 'week' | 'month' | 'year' | 'all' | 'custom' | 'monthYear'
+  preset: 'week' | 'month' | 'year' | 'all' | 'custom' | 'monthYear' | 'yearSpecific'
   from?: string
   to?: string
   month?: number // 0-11

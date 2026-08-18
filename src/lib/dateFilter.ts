@@ -1,5 +1,11 @@
 import type { DateRangeFilter, Position } from '@/types'
 
+/** כל השנים שבהן יש עסקאות בפועל (לפי תאריך פתיחה), ממוינות */
+export function getAvailableYears(positions: Position[]): number[] {
+  const years = new Set(positions.map((p) => new Date(p.openDate).getFullYear()))
+  return Array.from(years).sort((a, b) => a - b)
+}
+
 function startOfWeek(d: Date): Date {
   const date = new Date(d)
   const day = date.getDay() // 0 = ראשון
@@ -40,6 +46,12 @@ export function filterPositionsByDate(positions: Position[], filter: DateRangeFi
       if (filter.month !== undefined && filter.year !== undefined) {
         from = new Date(filter.year, filter.month, 1)
         to = new Date(filter.year, filter.month + 1, 1)
+      }
+      break
+    case 'yearSpecific':
+      if (filter.year !== undefined) {
+        from = new Date(filter.year, 0, 1)
+        to = new Date(filter.year + 1, 0, 1)
       }
       break
     case 'custom':

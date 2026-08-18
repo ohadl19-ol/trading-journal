@@ -7,12 +7,15 @@ interface DateRangeFilterBarProps {
   onFilterChange: (filter: DateRangeFilter) => void
   /** תוכן נוסף (למשל כפתור רענון) שמוצג בקצה שורת הפריסטים */
   trailing?: React.ReactNode
+  /** שנים זמינות לבחירה בפריסט "שנה ספציפית" (למשל כל השנים שיש בהן עסקאות) */
+  availableYears?: number[]
 }
 
 const PRESETS: { value: DateRangeFilter['preset']; label: string }[] = [
   { value: 'week', label: 'שבוע נוכחי' },
   { value: 'month', label: 'חודש נוכחי' },
   { value: 'year', label: 'שנה נוכחית' },
+  { value: 'yearSpecific', label: 'שנה ספציפית' },
   { value: 'all', label: 'הכול' },
   { value: 'custom', label: 'טווח מותאם' },
   { value: 'monthYear', label: 'חודש+שנה ספציפי' },
@@ -23,7 +26,7 @@ const MONTH_NAMES = [
   'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר',
 ]
 
-export function DateRangeFilterBar({ filter, onFilterChange, trailing }: DateRangeFilterBarProps) {
+export function DateRangeFilterBar({ filter, onFilterChange, trailing, availableYears }: DateRangeFilterBarProps) {
   return (
     <div className="rounded-xl border border-border bg-surface p-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -61,6 +64,31 @@ export function DateRangeFilterBar({ filter, onFilterChange, trailing }: DateRan
               onChange={(e) => onFilterChange({ ...filter, to: e.target.value })}
             />
           </div>
+        </div>
+      )}
+
+      {filter.preset === 'yearSpecific' && (
+        <div className="mt-3 sm:w-48">
+          <label className="mb-1 block text-xs text-text-muted">שנה</label>
+          {availableYears && availableYears.length > 0 ? (
+            <Select
+              value={filter.year ?? ''}
+              onChange={(e) => onFilterChange({ ...filter, year: Number(e.target.value) })}
+            >
+              <option value="">בחר שנה...</option>
+              {availableYears.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </Select>
+          ) : (
+            <Input
+              type="number"
+              value={filter.year ?? ''}
+              onChange={(e) => onFilterChange({ ...filter, year: Number(e.target.value) })}
+            />
+          )}
         </div>
       )}
 

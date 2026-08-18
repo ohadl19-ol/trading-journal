@@ -4,11 +4,12 @@ import { cn } from '@/lib/utils'
 
 interface MonthlyHeatmapProps {
   monthly: MonthlyPnl[]
+  onMonthClick?: (year: number, month: number) => void
 }
 
 const MONTH_LABELS = ['ינו', 'פבר', 'מרץ', 'אפר', 'מאי', 'יונ', 'יול', 'אוג', 'ספט', 'אוק', 'נוב', 'דצמ']
 
-export function MonthlyHeatmap({ monthly }: MonthlyHeatmapProps) {
+export function MonthlyHeatmap({ monthly, onMonthClick }: MonthlyHeatmapProps) {
   if (monthly.length === 0) {
     return <p className="text-sm text-text-muted">אין עדיין עסקאות סגורות להצגה</p>
   }
@@ -49,15 +50,21 @@ export function MonthlyHeatmap({ monthly }: MonthlyHeatmapProps) {
                 return (
                   <td
                     key={monthIdx}
-                    className="rounded-md p-2 text-center num-tabular"
+                    className={cn('rounded-md p-0 text-center num-tabular', onMonthClick && 'cursor-pointer')}
                     style={{
                       backgroundColor: isWin
                         ? `color-mix(in srgb, var(--color-win) ${opacity * 100}%, transparent)`
                         : `color-mix(in srgb, var(--color-loss) ${opacity * 100}%, transparent)`,
                     }}
-                    title={`${cell.count} עסקאות`}
+                    title={`${cell.count} עסקאות — לחץ לפירוט`}
+                    onClick={() => onMonthClick?.(year, monthIdx)}
                   >
-                    <div className={cn('font-medium', intensity > 0.45 ? 'text-white' : isWin ? 'text-win' : 'text-loss')}>
+                    <div
+                      className={cn(
+                        'w-full rounded-md p-2 font-medium transition-transform hover:scale-105',
+                        intensity > 0.45 ? 'text-white' : isWin ? 'text-win' : 'text-loss',
+                      )}
+                    >
                       {cell.pnl >= 0 ? '+' : ''}
                       {formatCurrency(cell.pnl)}
                     </div>
