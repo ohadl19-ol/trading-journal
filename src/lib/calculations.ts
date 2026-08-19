@@ -28,6 +28,7 @@ export function calculatePosition(input: CalculatorInput): CalculatorResult {
 
   const price2R = entryPrice + 2 * riskPerShare
   const price3R = entryPrice + 3 * riskPerShare
+  const price4R = entryPrice + 4 * riskPerShare
 
   return {
     shares,
@@ -37,6 +38,7 @@ export function calculatePosition(input: CalculatorInput): CalculatorResult {
     riskRewardRatio,
     price2R,
     price3R,
+    price4R,
   }
 }
 

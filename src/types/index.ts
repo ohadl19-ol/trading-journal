@@ -50,6 +50,7 @@ export interface Position {
   plannedRR: number | null // יחס R/R מתוכנן
   target2R: number | null // יעד 2R
   target3R: number | null // יעד 3R
+  target4R: number | null // יעד 4R
   accountBalance: number | null // יתרת חשבון
   realizedPnl: number // רווח/הפסד ממומש $
   realizedR: number | null // R ממומש
@@ -113,6 +114,7 @@ export interface CalculatorResult {
   riskRewardRatio: number | null
   price2R: number
   price3R: number
+  price4R: number
 }
 
 export interface DateRangeFilter {

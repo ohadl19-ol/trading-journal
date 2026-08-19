@@ -36,7 +36,7 @@ const POSITIONS_HEADERS = [
   'גודל פוזיציה נוכחי $', '% פוזיציה מהחשבון', '% סיכון מהחשבון', 'יחס R/R מתוכנן',
   'יעד 2R', 'יעד 3R', 'יתרת חשבון', 'רווח/הפסד ממומש $', 'R ממומש', 'תוצאה', 'WIN/LOSS',
   'קטגוריה/תגית', 'תאריך סגירה', 'סיבת כניסה/סטאפ', 'קישור צ׳ארט', 'הערות',
-  'שווי מצטבר', 'מחיר נוכחי', 'עמלות שנצברו', 'מועדף',
+  'שווי מצטבר', 'מחיר נוכחי', 'עמלות שנצברו', 'מועדף', 'יעד 4R',
 ]
 
 function positionToRow(p: Position): unknown[] {
@@ -46,7 +46,7 @@ function positionToRow(p: Position): unknown[] {
     p.currentPositionSize, p.accountPercentage, p.riskPercentage, p.plannedRR,
     p.target2R, p.target3R, p.accountBalance, p.realizedPnl, p.realizedR, p.outcome,
     p.winLoss, p.category, p.closeDate, p.setupReason, p.chartUrl, p.notes, p.equity,
-    p.currentPrice, p.accruedCommission, p.isFavorite,
+    p.currentPrice, p.accruedCommission, p.isFavorite, p.target4R,
   ]
 }
 

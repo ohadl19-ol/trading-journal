@@ -25,7 +25,7 @@ var POSITIONS_HEADERS = [
   '% סיכון מהחשבון', 'יחס R/R מתוכנן', 'יעד 2R', 'יעד 3R', 'יתרת חשבון',
   'רווח/הפסד ממומש $', 'R ממומש', 'תוצאה (Outcome)', 'WIN/LOSS',
   'קטגוריה/תגית', 'תאריך סגירה', 'סיבת כניסה/סטאפ', 'קישור צ\'ארט הפוזיציה',
-  'הערות', 'שווי מצטבר (equity)', 'מחיר נוכחי (לא ממומש)', 'עמלות שנצברו $', 'מועדף',
+  'הערות', 'שווי מצטבר (equity)', 'מחיר נוכחי (לא ממומש)', 'עמלות שנצברו $', 'מועדף', 'יעד 4R',
 ];
 
 // כותרות לשונית "פעולות"
@@ -281,6 +281,7 @@ function handleOpen_(body) {
   setByHeader_(row, 'יחס R/R מתוכנן', body.plannedRR);
   setByHeader_(row, 'יעד 2R', body.target2R);
   setByHeader_(row, 'יעד 3R', body.target3R);
+  setByHeader_(row, 'יעד 4R', body.target4R);
   setByHeader_(row, 'יתרת חשבון', body.accountBalance);
   setByHeader_(row, 'רווח/הפסד ממומש $', 0);
   setByHeader_(row, 'סיבת כניסה/סטאפ', body.setupReason);
@@ -841,6 +842,7 @@ function readPositions_() {
       currentPrice: row[28] === '' || row[28] === undefined ? null : Number(row[28]),
       accruedCommission: Number(row[29]) || 0,
       isFavorite: row[30] === true,
+      target4R: row[31] === '' || row[31] === undefined ? null : Number(row[31]),
     };
   });
 }

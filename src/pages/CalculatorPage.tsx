@@ -233,6 +233,7 @@ export function CalculatorPage({ settings, onOpenTrade, currentEquity }: Calcula
                 <ResultTile label="סכום סיכון" value={`$${formatCurrency(riskAmountNum)}`} />
                 <ResultTile label="יעד 2R" value={`$${formatCurrency(result.price2R)}`} />
                 <ResultTile label="יעד 3R" value={`$${formatCurrency(result.price3R)}`} />
+                <ResultTile label="יעד 4R" value={`$${formatCurrency(result.price4R)}`} />
               </div>
 
               <Button
