@@ -115,6 +115,7 @@ export interface CalculatorResult {
   price2R: number
   price3R: number
   price4R: number
+  stopLossPercentage: number | null
 }
 
 export interface DateRangeFilter {

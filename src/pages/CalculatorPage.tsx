@@ -51,6 +51,13 @@ export function CalculatorPage({ settings, onOpenTrade, currentEquity }: Calcula
   const targetPriceNum = targetPrice ? parseFloat(targetPrice) : null
   const accountBalanceNum = accountBalance ? parseFloat(accountBalance) : null
 
+  // מרחק הסטופ מהכניסה באחוזים — מוצג מיד ברגע שיש מחיר כניסה וסטופ תקינים,
+  // גם לפני שממלאים את שאר השדות, כדי לתת פידבק מהיר על גודל הסיכון היחסי
+  const stopPct =
+    entryPriceNum > 0 && stopLossNum > 0 && entryPriceNum > stopLossNum
+      ? ((entryPriceNum - stopLossNum) / entryPriceNum) * 100
+      : null
+
   const isValid =
     symbol.trim().length > 0 &&
     pattern.trim().length > 0 &&
@@ -184,6 +191,18 @@ export function CalculatorPage({ settings, onOpenTrade, currentEquity }: Calcula
             <p className="text-sm text-loss">מחיר הכניסה חייב להיות גבוה ממחיר הסטופ לוס</p>
           )}
 
+          {stopPct !== null && (
+            <div
+              className={cn(
+                'flex items-center justify-between rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm',
+                percentageColorClass(stopPct),
+              )}
+            >
+              <span>מרחק הסטופ מהכניסה</span>
+              <span className="num-tabular font-semibold">{formatPercentage(stopPct)}</span>
+            </div>
+          )}
+
           <div>
             <Label>סיבת כניסה / סטאפ</Label>
             <Textarea value={setupReason} onChange={(e) => setSetupReason(e.target.value)} rows={2} />
@@ -224,6 +243,11 @@ export function CalculatorPage({ settings, onOpenTrade, currentEquity }: Calcula
                   label="% סיכון מהחשבון"
                   value={formatPercentage(result.riskPercentage)}
                   className={percentageColorClass(result.riskPercentage)}
+                />
+                <ResultTile
+                  label="% מרחק סטופ מהכניסה"
+                  value={formatPercentage(result.stopLossPercentage)}
+                  className={percentageColorClass(result.stopLossPercentage)}
                 />
                 <ResultTile
                   label="יחס R/R"

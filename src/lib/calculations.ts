@@ -30,6 +30,9 @@ export function calculatePosition(input: CalculatorInput): CalculatorResult {
   const price3R = entryPrice + 3 * riskPerShare
   const price4R = entryPrice + 4 * riskPerShare
 
+  const stopLossPercentage =
+    entryPrice > 0 && riskPerShare > 0 ? (riskPerShare / entryPrice) * 100 : null
+
   return {
     shares,
     positionSize,
@@ -39,10 +42,11 @@ export function calculatePosition(input: CalculatorInput): CalculatorResult {
     price2R,
     price3R,
     price4R,
+    stopLossPercentage,
   }
 }
 
-/** צביעת אחוז פוזיציה/סיכון מהחשבון */
+/** צביעת אחוז פוזיציה/סיכון מהחשבון, וגם אחוז מרחק הסטופ מהכניסה (אותם ספי 5%/10%) */
 export function percentageColorClass(pct: number | null): string {
   if (pct === null) return ''
   if (pct > 10) return 'text-loss'
