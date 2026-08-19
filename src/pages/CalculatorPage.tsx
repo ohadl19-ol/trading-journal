@@ -28,6 +28,7 @@ export function CalculatorPage({ settings, onOpenTrade, currentEquity }: Calcula
   const [entryPrice, setEntryPrice] = React.useState('')
   const [stopLoss, setStopLoss] = React.useState('')
   const [targetPrice, setTargetPrice] = React.useState('')
+  const [targetPriceTouched, setTargetPriceTouched] = React.useState(false)
   const [accountBalance, setAccountBalance] = React.useState(() =>
     (currentEquity || settings.defaultAccountBalance).toString(),
   )
@@ -59,6 +60,22 @@ export function CalculatorPage({ settings, onOpenTrade, currentEquity }: Calcula
     entryPriceNum > 0 && stopLossNum > 0 && entryPriceNum > stopLossNum
       ? ((entryPriceNum - stopLossNum) / entryPriceNum) * 100
       : null
+
+  // הצעת יעד ברירת מחדל של 2R, כדי שיחס R/R לא יישאר ריק אם לא הוזן יעד ידני
+  const suggestedTarget2R =
+    entryPriceNum > 0 && stopLossNum > 0 && entryPriceNum > stopLossNum
+      ? entryPriceNum + 2 * (entryPriceNum - stopLossNum)
+      : null
+
+  React.useEffect(() => {
+    if (!targetPriceTouched && suggestedTarget2R !== null) {
+      setTargetPrice(suggestedTarget2R.toFixed(2))
+    }
+    if (!targetPriceTouched && suggestedTarget2R === null) {
+      setTargetPrice('')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suggestedTarget2R, targetPriceTouched])
 
   const isValid =
     symbol.trim().length > 0 &&
@@ -100,6 +117,7 @@ export function CalculatorPage({ settings, onOpenTrade, currentEquity }: Calcula
       setEntryPrice('')
       setStopLoss('')
       setTargetPrice('')
+      setTargetPriceTouched(false)
       setSetupReason('')
       setChartUrl('')
       setEntryDate('')
@@ -187,8 +205,30 @@ export function CalculatorPage({ settings, onOpenTrade, currentEquity }: Calcula
               <Input type="number" value={stopLoss} onChange={(e) => setStopLoss(e.target.value)} />
             </div>
             <div>
-              <Label>מחיר יעד ($)</Label>
-              <Input type="number" value={targetPrice} onChange={(e) => setTargetPrice(e.target.value)} />
+              <div className="mb-1 flex items-center justify-between">
+                <Label className="mb-0">מחיר יעד ($)</Label>
+                {targetPriceTouched && suggestedTarget2R !== null && (
+                  <button
+                    type="button"
+                    onClick={() => setTargetPriceTouched(false)}
+                    className="text-xs text-accent hover:underline"
+                    title="חזור להצעת 2R אוטומטית"
+                  >
+                    איפוס ל-2R
+                  </button>
+                )}
+              </div>
+              <Input
+                type="number"
+                value={targetPrice}
+                onChange={(e) => {
+                  setTargetPrice(e.target.value)
+                  setTargetPriceTouched(true)
+                }}
+              />
+              {!targetPriceTouched && suggestedTarget2R !== null && (
+                <p className="mt-1 text-[11px] text-text-muted">מולא אוטומטית לפי יעד 2R — ניתן לערוך</p>
+              )}
             </div>
           </div>
 
