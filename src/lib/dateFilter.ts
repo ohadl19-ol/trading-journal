@@ -21,7 +21,8 @@ function endOfWeek(d: Date): Date {
   return end
 }
 
-export function filterPositionsByDate(positions: Position[], filter: DateRangeFilter): Position[] {
+/** גבולות התאריכים (from/to) שמייצג פילטר נתון. from=null אומר "מההתחלה" (פילטר 'all'). */
+export function computeDateBounds(filter: DateRangeFilter): { from: Date | null; to: Date | null } {
   const now = new Date()
 
   let from: Date | null = null
@@ -29,7 +30,7 @@ export function filterPositionsByDate(positions: Position[], filter: DateRangeFi
 
   switch (filter.preset) {
     case 'all':
-      return positions
+      return { from: null, to: null }
     case 'week':
       from = startOfWeek(now)
       to = endOfWeek(now)
@@ -64,6 +65,13 @@ export function filterPositionsByDate(positions: Position[], filter: DateRangeFi
       if (to) to.setHours(23, 59, 59, 999)
       break
   }
+
+  return { from, to }
+}
+
+export function filterPositionsByDate(positions: Position[], filter: DateRangeFilter): Position[] {
+  if (filter.preset === 'all') return positions
+  const { from, to } = computeDateBounds(filter)
 
   return positions.filter((p) => {
     const openDate = new Date(p.openDate)

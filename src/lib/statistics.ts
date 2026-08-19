@@ -53,6 +53,58 @@ export function computeEquitySummary(allPositions: Position[], initialCapital: n
   }
 }
 
+/**
+ * שווי חשבון לתקופה מסוננת: "הון התחלתי" של הכרטיס הוא ה-equity בפועל בתחילת
+ * התקופה (הון התחלתי כללי + כל הרווח/הפסד הממומש שנצבר *לפני* התקופה), ורווח/הפסד
+ * ואחוזים מחושבים רק על העסקאות שבתוך התקופה המסוננת. כשאין גבול תחתון (rangeFrom
+ * null, כלומר פילטר "הכול") מתנהג בדיוק כמו computeEquitySummary.
+ */
+export function computeEquitySummaryForRange(
+  allPositions: Position[],
+  initialCapital: number,
+  filteredPositions: Position[],
+  rangeFrom: Date | null,
+): EquitySummary {
+  if (!rangeFrom) {
+    return computeEquitySummary(allPositions, initialCapital)
+  }
+
+  const closedBeforeRange = allPositions.filter(
+    (p) => p.status === 'סגורה' && p.closeDate && new Date(p.closeDate) < rangeFrom,
+  )
+  const periodStartCapital = initialCapital + closedBeforeRange.reduce((sum, p) => sum + p.realizedPnl, 0)
+
+  const closedInPeriod = filteredPositions.filter((p) => p.status === 'סגורה')
+  const openInPeriod = filteredPositions.filter((p) => p.status !== 'סגורה')
+
+  const totalRealizedPnl = closedInPeriod.reduce((sum, p) => sum + p.realizedPnl, 0)
+
+  let unrealizedPnl = 0
+  let openPositionsWithPrice = 0
+  let openPositionsMissingPrice = 0
+  for (const p of openInPeriod) {
+    if (p.currentPrice !== null && p.currentPrice !== undefined) {
+      unrealizedPnl += p.currentShares * (p.currentPrice - p.avgEntryPrice)
+      openPositionsWithPrice += 1
+    } else {
+      openPositionsMissingPrice += 1
+    }
+  }
+
+  const currentEquity = periodStartCapital + totalRealizedPnl + unrealizedPnl
+  const pnlPercentage = periodStartCapital !== 0 ? (currentEquity - periodStartCapital) / periodStartCapital : 0
+
+  return {
+    initialCapital: periodStartCapital,
+    totalRealizedPnl,
+    unrealizedPnl,
+    currentEquity,
+    pnlPercentage,
+    openPositionsWithPrice,
+    openPositionsMissingPrice,
+  }
+}
+
 export interface EquityPoint {
   date: string // תאריך סגירה (ISO)
   equity: number

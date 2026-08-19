@@ -9,7 +9,7 @@ import { MonthlyHeatmap } from '@/components/MonthlyHeatmap'
 import { Select } from '@/components/ui/select'
 import {
   computeStatistics,
-  computeEquitySummary,
+  computeEquitySummaryForRange,
   computeEquityCurveForRange,
   computeDrawdown,
   computeStreaks,
@@ -20,7 +20,7 @@ import {
   type EquityCurveRange,
 } from '@/lib/statistics'
 import { formatCurrency, formatPercentage } from '@/lib/calculations'
-import { filterPositionsByDate, getAvailableYears } from '@/lib/dateFilter'
+import { filterPositionsByDate, computeDateBounds, getAvailableYears } from '@/lib/dateFilter'
 import { tradingViewSymbolUrl } from '@/lib/tradingview'
 import type { DateRangeFilter, Position } from '@/types'
 import { cn } from '@/lib/utils'
@@ -37,8 +37,13 @@ const QUARTER_LABELS = { 1: 'רבעון 1 (ינו-מרץ)', 2: 'רבעון 2 (א
 export function StatisticsPage({ positions, initialCapital, filter, onFilterChange }: StatisticsPageProps) {
   const filtered = React.useMemo(() => filterPositionsByDate(positions, filter), [positions, filter])
   const stats = React.useMemo(() => computeStatistics(filtered, initialCapital), [filtered, initialCapital])
-  // שווי החשבון האמיתי מחושב תמיד על כל ההיסטוריה (לא מסונן), כולל רווח/הפסד לא ממומש
-  const equity = React.useMemo(() => computeEquitySummary(positions, initialCapital), [positions, initialCapital])
+  // כשהפילטר הוא "הכול" — שווי החשבון מחושב על כל ההיסטוריה. כשנבחרה תקופה ספציפית
+  // (שנה/חודש/טווח מותאם) — כרטיסי ההון מציגים רק את אותה תקופה: הון בתחילתה + מה שקרה בתוכה.
+  const rangeFrom = React.useMemo(() => computeDateBounds(filter).from, [filter])
+  const equity = React.useMemo(
+    () => computeEquitySummaryForRange(positions, initialCapital, filtered, rangeFrom),
+    [positions, initialCapital, filtered, rangeFrom],
+  )
   const drawdownFull = React.useMemo(
     () => computeEquityCurveForRange(positions, initialCapital, { type: 'all' }),
     [positions, initialCapital],
@@ -89,9 +94,18 @@ export function StatisticsPage({ positions, initialCapital, filter, onFilterChan
       <DateRangeFilterBar filter={filter} onFilterChange={onFilterChange} availableYears={filterYears} />
 
       <div className="rounded-xl border border-border bg-surface p-3 text-xs text-text-muted">
-        כרטיסי ההון למעלה (הון התחלתי / רווח־הפסד ממומש / לא ממומש / שווי נוכחי / אחוזים) משקפים תמיד את
-        <b className="text-text"> מצב החשבון האמיתי על פני כל ההיסטוריה</b>, ללא קשר לסינון ביומן. שאר הכרטיסים
-        (אחוז הצלחה, תוחלת, פילוחים) מכבדים את הסינון הפעיל.
+        כרטיסי ההון למעלה (הון התחלתי / רווח־הפסד ממומש / לא ממומש / שווי נוכחי / אחוזים) מכבדים את הסינון הפעיל:
+        {filter.preset === 'all' ? (
+          <>
+            {' '}כרגע מוצג <b className="text-text">מצב החשבון האמיתי על פני כל ההיסטוריה</b>.
+          </>
+        ) : (
+          <>
+            {' '}כרגע מוצגים רק נתוני התקופה הנבחרת — <b className="text-text">הון התחלתי הוא שווי החשבון בפועל
+            בתחילת התקופה</b> (הון התחלתי כללי + כל מה שנצבר לפני התקופה), והרווח/הפסד מחושב רק על עסקאות בתוך
+            התקופה. בחר "הכול" כדי לחזור לתצוגת כל ההיסטוריה.
+          </>
+        )}
         {equity.openPositionsMissingPrice > 0 && (
           <span className="mt-1 block text-warn">
             ⚠️ יש {equity.openPositionsMissingPrice} פוזיציות פתוחות בלי מחיר עדכני — בד״כ זה מתעדכן אוטומטית מהגיליון
