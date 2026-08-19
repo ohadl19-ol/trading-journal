@@ -185,7 +185,24 @@ function buildTradeDetailView_(tradeId) {
   if (!trade) return { error: 'עסקה לא נמצאה: ' + tradeId };
 
   var executions = readExecutions_().filter(function (e) { return e.tradeId === tradeId; });
-  return { trade: trade, executions: executions };
+
+  // בנוסף לקישור המקורי (עמוד HTML), פותרים גם קישור ישיר לקובץ התמונה עצמו —
+  // כדי שכלי חיצוני עם יכולת ראייה (כמו Custom GPT) יוכל לצפות בצ'ארט ישירות
+  var chartImageUrl = trade.chartUrl ? resolveChartImageUrl_(trade.chartUrl) : null;
+
+  return { trade: trade, executions: executions, chartImageUrl: chartImageUrl };
+}
+
+/** מחלץ מעמוד ה-snapshot של TradingView את קישור התמונה הישיר (og:image) */
+function resolveChartImageUrl_(chartUrl) {
+  try {
+    var resp = UrlFetchApp.fetch(chartUrl, { muteHttpExceptions: true });
+    if (resp.getResponseCode() !== 200) return null;
+    var match = resp.getContentText().match(/property="og:image" content="([^"]+)"/);
+    return match ? match[1] : null;
+  } catch (err) {
+    return null;
+  }
 }
 
 function doPost(e) {
@@ -705,18 +722,12 @@ function handleFetchChartImages_(body) {
   for (var i = 0; i < limited.length; i++) {
     var item = limited[i];
     try {
-      var pageResp = UrlFetchApp.fetch(item.chartUrl, { muteHttpExceptions: true });
-      if (pageResp.getResponseCode() !== 200) {
-        results.push({ tradeId: item.tradeId, symbol: item.symbol, error: 'שגיאה בטעינת עמוד הצ׳ארט' });
+      var imageUrl = resolveChartImageUrl_(item.chartUrl);
+      if (!imageUrl) {
+        results.push({ tradeId: item.tradeId, symbol: item.symbol, error: 'לא נמצאה תמונה בעמוד הצ׳ארט' });
         continue;
       }
-      var html = pageResp.getContentText();
-      var match = html.match(/property="og:image" content="([^"]+)"/);
-      if (!match) {
-        results.push({ tradeId: item.tradeId, symbol: item.symbol, error: 'לא נמצאה תמונה בעמוד' });
-        continue;
-      }
-      var imgResp = UrlFetchApp.fetch(match[1], { muteHttpExceptions: true });
+      var imgResp = UrlFetchApp.fetch(imageUrl, { muteHttpExceptions: true });
       if (imgResp.getResponseCode() !== 200) {
         results.push({ tradeId: item.tradeId, symbol: item.symbol, error: 'שגיאה במשיכת קובץ התמונה' });
         continue;
