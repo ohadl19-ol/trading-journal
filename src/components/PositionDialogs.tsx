@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 import { CATEGORY_OPTIONS, OUTCOME_OPTIONS, PATTERN_OPTIONS, type Position } from '@/types'
+import { combineDateTimeToIso } from '@/lib/utils'
 import type {
   AddSharesInput,
   CloseInput,
@@ -55,6 +56,8 @@ export function PositionDialogs({
   const [outcome, setOutcome] = React.useState('')
   const [category, setCategory] = React.useState('')
   const [closeNotes, setCloseNotes] = React.useState('')
+  const [closeDate, setCloseDate] = React.useState('')
+  const [closeTime, setCloseTime] = React.useState('')
 
   // מצב קישור צ'ארט
   const [chartUrl, setChartUrl] = React.useState(position?.chartUrl ?? '')
@@ -93,6 +96,8 @@ export function PositionDialogs({
       setOutcome('')
       setCategory('')
       setCloseNotes('')
+      setCloseDate('')
+      setCloseTime('')
     }
   }, [position, mode])
 
@@ -241,6 +246,19 @@ export function PositionDialogs({
             <Label>הערה</Label>
             <Textarea value={closeNotes} onChange={(e) => setCloseNotes(e.target.value)} rows={2} />
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>תאריך סגירה</Label>
+              <Input type="date" value={closeDate} onChange={(e) => setCloseDate(e.target.value)} />
+            </div>
+            <div>
+              <Label>שעת סגירה</Label>
+              <Input type="time" value={closeTime} onChange={(e) => setCloseTime(e.target.value)} />
+            </div>
+          </div>
+          <p className="-mt-1 text-xs text-text-muted">
+            השאר ריק כדי להשתמש ברגע הנוכחי (עדכון אוטומטי בזמן לחיצה על "אישור סגירת עסקה")
+          </p>
           <Button
             variant="destructive"
             className="w-full"
@@ -254,6 +272,7 @@ export function PositionDialogs({
                     outcome: outcome as CloseInput['outcome'],
                     category,
                     notes: closeNotes,
+                    closeDate: combineDateTimeToIso(closeDate, closeTime),
                   }),
                 'העסקה נסגרה',
               )

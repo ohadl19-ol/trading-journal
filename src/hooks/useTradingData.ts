@@ -24,6 +24,8 @@ export interface OpenTradeInput {
   accountBalance: number | null
   setupReason: string
   chartUrl: string
+  /** תאריך+שעת כניסה מדויקים (ISO). אם לא סופק, נעשה שימוש ברגע הנוכחי */
+  openDate?: string
 }
 
 export interface AddSharesInput {
@@ -46,6 +48,8 @@ export interface CloseInput {
   outcome: OutcomeType
   category: string
   notes: string
+  /** תאריך+שעת סגירה מדויקים (ISO). אם לא סופק, נעשה שימוש ברגע הנוכחי */
+  closeDate?: string
 }
 
 export interface UpdatePositionInput {
@@ -143,7 +147,7 @@ export function useTradingData(settings: AppSettings) {
 
       const tradeId = generateId('T')
       const execId = generateId('E')
-      const openDate = nowIso()
+      const openDate = input.openDate || nowIso()
 
       const newPosition: Position = {
         tradeId,
@@ -342,7 +346,7 @@ export function useTradingData(settings: AppSettings) {
         pos.currentShares * (input.price - pos.avgEntryPrice) - settings.commissionPerAction - pos.accruedCommission
       const totalRealizedPnl = pos.realizedPnl + pnlInAction
       const realizedR = pos.riskAmount > 0 ? totalRealizedPnl / pos.riskAmount : null
-      const timestamp = nowIso()
+      const timestamp = input.closeDate || nowIso()
 
       const updatedPosition: Position = {
         ...pos,

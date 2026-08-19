@@ -11,7 +11,7 @@ import { PATTERN_OPTIONS } from '@/types'
 import type { AppSettings } from '@/types'
 import type { OpenTradeInput } from '@/hooks/useTradingData'
 import { useToast } from '@/components/ui/toast'
-import { cn } from '@/lib/utils'
+import { cn, combineDateTimeToIso } from '@/lib/utils'
 
 interface CalculatorPageProps {
   settings: AppSettings
@@ -34,6 +34,8 @@ export function CalculatorPage({ settings, onOpenTrade, currentEquity }: Calcula
   const [accountBalanceTouched, setAccountBalanceTouched] = React.useState(false)
   const [setupReason, setSetupReason] = React.useState('')
   const [chartUrl, setChartUrl] = React.useState('')
+  const [entryDate, setEntryDate] = React.useState('')
+  const [entryTime, setEntryTime] = React.useState('')
   const [submitting, setSubmitting] = React.useState(false)
 
   // כשהשווי הנוכחי המחושב מתעדכן (למשל אחרי טעינת נתונים מהשרת) ועדיין לא ערכת ידנית
@@ -90,6 +92,7 @@ export function CalculatorPage({ settings, onOpenTrade, currentEquity }: Calcula
         accountBalance: accountBalanceNum,
         setupReason,
         chartUrl,
+        openDate: combineDateTimeToIso(entryDate, entryTime),
       })
       toast('העסקה נרשמה')
       setSymbol('')
@@ -99,6 +102,8 @@ export function CalculatorPage({ settings, onOpenTrade, currentEquity }: Calcula
       setTargetPrice('')
       setSetupReason('')
       setChartUrl('')
+      setEntryDate('')
+      setEntryTime('')
     } catch (err) {
       toast(err instanceof Error ? err.message : 'שגיאה ברישום העסקה', 'error')
     } finally {
@@ -202,6 +207,20 @@ export function CalculatorPage({ settings, onOpenTrade, currentEquity }: Calcula
               <span className="num-tabular font-semibold">{formatPercentage(stopPct)}</span>
             </div>
           )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>תאריך כניסה</Label>
+              <Input type="date" value={entryDate} onChange={(e) => setEntryDate(e.target.value)} />
+            </div>
+            <div>
+              <Label>שעת כניסה</Label>
+              <Input type="time" value={entryTime} onChange={(e) => setEntryTime(e.target.value)} />
+            </div>
+          </div>
+          <p className="-mt-2 text-xs text-text-muted">
+            השאר ריק כדי להשתמש ברגע הנוכחי (עדכון אוטומטי בזמן לחיצה על "ביצוע עסקה")
+          </p>
 
           <div>
             <Label>סיבת כניסה / סטאפ</Label>
