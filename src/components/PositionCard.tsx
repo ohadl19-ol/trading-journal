@@ -168,10 +168,11 @@ export function PositionCard({
             className={rrColorClass(position.plannedRR)}
           />
           <Field
-            label="2R / 3R"
+            label="2R / 3R / 4R"
             value={
               position.target2R && position.target3R
-                ? `$${formatCurrency(position.target2R)} / $${formatCurrency(position.target3R)}`
+                ? `$${formatCurrency(position.target2R)} / $${formatCurrency(position.target3R)}` +
+                  (position.target4R ? ` / $${formatCurrency(position.target4R)}` : '')
                 : '—'
             }
           />
