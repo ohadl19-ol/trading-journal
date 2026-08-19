@@ -3,7 +3,7 @@ import { ChevronDown, ExternalLink, Image as ImageIcon, Link as LinkIcon, PlusCi
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { formatCurrency, formatNumber, rrColorClass } from '@/lib/calculations'
+import { formatCurrency, formatNumber, formatPercentage, percentageColorClass, rrColorClass } from '@/lib/calculations'
 import { tradingViewSymbolUrl } from '@/lib/tradingview'
 import type { Execution, Position } from '@/types'
 import { cn } from '@/lib/utils'
@@ -46,6 +46,12 @@ export function PositionCard({
       : null
   // עסקה קניה (long) חוצה סטופ כשהמחיר הנוכחי יורד עד/מתחת לרמת הסטופ
   const stopBreached = isOpen && position.currentPrice != null && position.currentPrice <= position.stopLoss
+  // מרחק הסטופ מהכניסה באחוזים — מחושב תמיד בזמן אמת ממחיר הכניסה והסטופ השמורים,
+  // כך שזה נשאר מדויק גם אחרי עדכון סטופ (טריילינג סטופ)
+  const stopPct =
+    position.avgEntryPrice > 0 && position.stopLoss > 0 && position.avgEntryPrice > position.stopLoss
+      ? ((position.avgEntryPrice - position.stopLoss) / position.avgEntryPrice) * 100
+      : null
 
   return (
     <Card className={stopBreached ? 'border-loss ring-1 ring-loss/40' : undefined}>
@@ -160,7 +166,11 @@ export function PositionCard({
         <div className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4 lg:grid-cols-6">
           <Field label="מחיר ממוצע" value={`$${formatCurrency(position.avgEntryPrice)}`} />
           <Field label="כמות נוכחית" value={formatNumber(position.currentShares)} />
-          <Field label="סטופ" value={`$${formatCurrency(position.stopLoss)}`} />
+          <Field
+            label="סטופ"
+            value={`$${formatCurrency(position.stopLoss)}${stopPct !== null ? ` (-${formatPercentage(stopPct)})` : ''}`}
+            className={percentageColorClass(stopPct)}
+          />
           <Field label="יעד" value={position.targetPrice ? `$${formatCurrency(position.targetPrice)}` : '—'} />
           <Field
             label="R/R מתוכנן"
