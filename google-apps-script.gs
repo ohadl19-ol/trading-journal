@@ -40,21 +40,152 @@ var DEFAULT_INITIAL_CAPITAL = 4455;
 
 function doGet(e) {
   checkWatchlistAlerts_(); // בדיקה הזדמנותית בכל טעינה - שולחת מייל אם מניה חצתה יעד
-  var trades = readPositions_();
-  var executions = readExecutions_();
-  var watchlist = readWatchlist_();
-  var notes = readGeneralNotes_();
-  var payload = { trades: trades, executions: executions, watchlist: watchlist, notes: notes };
 
-  if (e && e.parameter && e.parameter.callback) {
+  var params = (e && e.parameter) || {};
+  var scope = params.scope;
+  var payload;
+
+  if (scope === 'summary') {
+    // תקציר קומפקטי (לשימוש כלים חיצוניים כמו Custom GPT Actions, שיש להם מגבלת גודל תשובה)
+    payload = buildSummaryView_();
+  } else if (scope === 'trades') {
+    payload = buildTradesView_(params);
+  } else if (scope === 'trade') {
+    payload = buildTradeDetailView_(params.tradeId);
+  } else {
+    // ברירת מחדל: כל הנתונים המלאים — משמש את האפליקציה עצמה, לא לשנות!
+    payload = {
+      trades: readPositions_(),
+      executions: readExecutions_(),
+      watchlist: readWatchlist_(),
+      notes: readGeneralNotes_(),
+    };
+  }
+
+  if (params.callback) {
     return ContentService
-      .createTextOutput(e.parameter.callback + '(' + JSON.stringify(payload) + ')')
+      .createTextOutput(params.callback + '(' + JSON.stringify(payload) + ')')
       .setMimeType(ContentService.MimeType.JAVASCRIPT);
   }
 
   return ContentService
     .createTextOutput(JSON.stringify(payload))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ==================== "views" קומפקטיים לצריכה חיצונית (Custom GPT Actions וכד') ====================
+// כלים חיצוניים (כמו Custom GPT) מגבילים את גודל תשובת ה-API בקריאה אחת. לכן, בנוסף
+// לתשובה המלאה (ברירת המחדל, ל-doGet רגיל) יש כאן שלושה "views" קומפקטיים בהרבה.
+
+/** תקציר סטטיסטי בלבד — הכי קטן, לשאלות כלליות ("איך אני מתפקד?") */
+function buildSummaryView_() {
+  var trades = readPositions_();
+  var closed = trades.filter(function (t) { return t.status === 'סגורה'; });
+  var open = trades.filter(function (t) { return t.status !== 'סגורה'; });
+
+  var winCount = 0, lossCount = 0, totalRealizedPnl = 0;
+  var winSum = 0, lossSum = 0;
+  var byPattern = {}, byCategory = {};
+
+  closed.forEach(function (t) {
+    totalRealizedPnl += t.realizedPnl;
+    if (t.winLoss === 'WIN') { winCount++; winSum += t.realizedPnl; }
+    if (t.winLoss === 'LOSS') { lossCount++; lossSum += t.realizedPnl; }
+
+    var pat = t.pattern || 'לא צוין';
+    if (!byPattern[pat]) byPattern[pat] = { count: 0, pnl: 0 };
+    byPattern[pat].count++;
+    byPattern[pat].pnl += t.realizedPnl;
+
+    var cat = t.category || 'ללא קטגוריה';
+    if (!byCategory[cat]) byCategory[cat] = { count: 0, pnl: 0 };
+    byCategory[cat].count++;
+    byCategory[cat].pnl += t.realizedPnl;
+  });
+
+  var initialCapital = getInitialCapital_();
+  var currentEquity = initialCapital + totalRealizedPnl;
+
+  var openSummary = open.map(function (t) {
+    return {
+      tradeId: t.tradeId, symbol: t.symbol, status: t.status, pattern: t.pattern,
+      avgEntryPrice: t.avgEntryPrice, currentPrice: t.currentPrice, stopLoss: t.stopLoss,
+      currentShares: t.currentShares, openDate: t.openDate, isFavorite: t.isFavorite,
+    };
+  });
+
+  return {
+    initialCapital: initialCapital,
+    totalRealizedPnl: totalRealizedPnl,
+    currentEquity: currentEquity,
+    closedTradesCount: closed.length,
+    winCount: winCount,
+    lossCount: lossCount,
+    winRate: (winCount + lossCount) > 0 ? winCount / (winCount + lossCount) : null,
+    avgWin: winCount > 0 ? winSum / winCount : null,
+    avgLoss: lossCount > 0 ? -(lossSum / lossCount) : null,
+    patternBreakdown: byPattern,
+    categoryBreakdown: byCategory,
+    openPositions: openSummary,
+    watchlist: readWatchlist_(),
+    notes: readGeneralNotes_(),
+  };
+}
+
+/**
+ * רשימת עסקאות מסוננת (בלי שדות "כבדים" כמו הערות/קישור צ'ארט, כדי לשמור על גודל קטן).
+ * פרמטרים אפשריים: year, month (1-12), status, symbol, limit (ברירת מחדל 50).
+ */
+function buildTradesView_(params) {
+  var trades = readPositions_();
+
+  if (params.year) {
+    trades = trades.filter(function (t) {
+      return new Date(t.openDate).getFullYear() === Number(params.year);
+    });
+  }
+  if (params.month) {
+    trades = trades.filter(function (t) {
+      return new Date(t.openDate).getMonth() + 1 === Number(params.month);
+    });
+  }
+  if (params.status) {
+    trades = trades.filter(function (t) { return t.status === params.status; });
+  }
+  if (params.symbol) {
+    var sym = String(params.symbol).toUpperCase();
+    trades = trades.filter(function (t) { return t.symbol === sym; });
+  }
+
+  trades.sort(function (a, b) { return new Date(b.openDate) - new Date(a.openDate); });
+
+  var limit = params.limit ? Number(params.limit) : 50;
+  var truncated = trades.length > limit;
+  trades = trades.slice(0, limit);
+
+  var trimmed = trades.map(function (t) {
+    return {
+      tradeId: t.tradeId, openDate: t.openDate, symbol: t.symbol, status: t.status,
+      pattern: t.pattern, avgEntryPrice: t.avgEntryPrice, currentShares: t.currentShares,
+      stopLoss: t.stopLoss, targetPrice: t.targetPrice, riskAmount: t.riskAmount,
+      realizedPnl: t.realizedPnl, realizedR: t.realizedR, outcome: t.outcome,
+      winLoss: t.winLoss, category: t.category, closeDate: t.closeDate,
+      currentPrice: t.currentPrice, isFavorite: t.isFavorite,
+    };
+  });
+
+  return { trades: trimmed, count: trimmed.length, truncated: truncated };
+}
+
+/** פרטים מלאים על עסקה בודדת (כולל הערות/קישור צ'ארט/כל הפעולות שלה) */
+function buildTradeDetailView_(tradeId) {
+  if (!tradeId) return { error: 'חסר tradeId' };
+  var trades = readPositions_();
+  var trade = trades.filter(function (t) { return t.tradeId === tradeId; })[0];
+  if (!trade) return { error: 'עסקה לא נמצאה: ' + tradeId };
+
+  var executions = readExecutions_().filter(function (e) { return e.tradeId === tradeId; });
+  return { trade: trade, executions: executions };
 }
 
 function doPost(e) {
