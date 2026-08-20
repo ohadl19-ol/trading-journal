@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/toast'
 import { formatCurrency } from '@/lib/calculations'
 import { tradingViewSymbolUrl } from '@/lib/tradingview'
 import { cn } from '@/lib/utils'
+import { DEFAULT_WATCHLIST_NAMES, DEFAULT_WATCHLIST_NAME } from '@/lib/watchlist'
 import type { AlertDirection, WatchlistItem } from '@/types'
 import type { AddWatchlistInput, UpdateWatchlistInput } from '@/hooks/useTradingData'
 
@@ -30,7 +31,18 @@ export function WatchlistPage({ watchlist, onAdd, onUpdate, onDelete }: Watchlis
   const [submitting, setSubmitting] = React.useState(false)
   const [editItem, setEditItem] = React.useState<WatchlistItem | null>(null)
 
+  // כל שמות הרשימות הקיימות בפועל (השתיים המובנות + כל רשימה מותאמת אישית שהמשתמש כבר יצר)
+  const allListNames = React.useMemo(() => {
+    const custom = watchlist.map((w) => w.listName || DEFAULT_WATCHLIST_NAME)
+    return Array.from(new Set([...DEFAULT_WATCHLIST_NAMES, ...custom]))
+  }, [watchlist])
+  const [activeList, setActiveList] = React.useState<string>(DEFAULT_WATCHLIST_NAME)
+
   const isValid = symbol.trim().length > 0
+  const itemsInActiveList = React.useMemo(
+    () => watchlist.filter((w) => (w.listName || DEFAULT_WATCHLIST_NAME) === activeList),
+    [watchlist, activeList],
+  )
 
   async function handleAdd() {
     setSubmitting(true)
@@ -40,8 +52,9 @@ export function WatchlistPage({ watchlist, onAdd, onUpdate, onDelete }: Watchlis
         targetPrice: targetPrice === '' ? null : parseFloat(targetPrice),
         alertDirection: direction,
         notes,
+        listName: activeList,
       })
-      toast(`${symbol.toUpperCase()} נוסף לרשימת המעקב`)
+      toast(`${symbol.toUpperCase()} נוסף ל"${activeList}"`)
       setSymbol('')
       setTargetPrice('')
       setDirection('above')
@@ -64,9 +77,32 @@ export function WatchlistPage({ watchlist, onAdd, onUpdate, onDelete }: Watchlis
 
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap gap-1 rounded-xl border border-border bg-surface p-1">
+        {allListNames.map((name) => {
+          const count = watchlist.filter((w) => (w.listName || DEFAULT_WATCHLIST_NAME) === name).length
+          return (
+            <button
+              key={name}
+              onClick={() => setActiveList(name)}
+              className={cn(
+                'flex shrink-0 items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
+                activeList === name
+                  ? 'bg-accent text-accent-fg'
+                  : 'text-text-muted hover:bg-surface-2 hover:text-text',
+              )}
+            >
+              {name}
+              <span className={cn('num-tabular text-xs', activeList === name ? 'opacity-80' : 'text-text-muted')}>
+                ({count})
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
       <Card>
         <CardHeader>
-          <CardTitle>הוספת מניה למעקב</CardTitle>
+          <CardTitle>הוספת מניה למעקב — "{activeList}"</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
@@ -105,12 +141,12 @@ export function WatchlistPage({ watchlist, onAdd, onUpdate, onDelete }: Watchlis
       </Card>
 
       <div className="space-y-3">
-        {watchlist.length === 0 && (
+        {itemsInActiveList.length === 0 && (
           <div className="rounded-xl border border-dashed border-border bg-surface p-10 text-center text-text-muted">
-            אין עדיין מניות ברשימת המעקב
+            אין עדיין מניות ב"{activeList}"
           </div>
         )}
-        {watchlist.map((item) => (
+        {itemsInActiveList.map((item) => (
           <WatchlistCard
             key={item.watchId}
             item={item}
@@ -123,6 +159,7 @@ export function WatchlistPage({ watchlist, onAdd, onUpdate, onDelete }: Watchlis
       {editItem && (
         <EditWatchlistDialog
           item={editItem}
+          allListNames={allListNames}
           onClose={() => setEditItem(null)}
           onSave={async (input) => {
             await onUpdate(input)
@@ -228,19 +265,25 @@ function WatchlistCard({
 
 function EditWatchlistDialog({
   item,
+  allListNames,
   onClose,
   onSave,
 }: {
   item: WatchlistItem
+  allListNames: string[]
   onClose: () => void
   onSave: (input: UpdateWatchlistInput) => Promise<void>
 }) {
   const [targetPrice, setTargetPrice] = React.useState(item.targetPrice != null ? String(item.targetPrice) : '')
   const [direction, setDirection] = React.useState<AlertDirection>(item.alertDirection)
   const [notes, setNotes] = React.useState(item.notes)
+  const currentList = item.listName || DEFAULT_WATCHLIST_NAME
+  const [listName, setListName] = React.useState(currentList)
+  const [customListName, setCustomListName] = React.useState('')
   const [submitting, setSubmitting] = React.useState(false)
 
   async function handleSave() {
+    const finalListName = listName === '__custom__' ? customListName.trim() : listName
     setSubmitting(true)
     try {
       await onSave({
@@ -248,6 +291,7 @@ function EditWatchlistDialog({
         targetPrice: targetPrice === '' ? null : parseFloat(targetPrice),
         alertDirection: direction,
         notes,
+        listName: finalListName || currentList,
       })
     } finally {
       setSubmitting(false)
@@ -257,6 +301,25 @@ function EditWatchlistDialog({
   return (
     <Dialog open onClose={onClose} title={`עריכת מעקב — ${item.symbol}`}>
       <div className="space-y-3">
+        <div>
+          <Label>רשימה</Label>
+          <Select value={listName} onChange={(e) => setListName(e.target.value)}>
+            {allListNames.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+            <option value="__custom__">רשימה אחרת...</option>
+          </Select>
+          {listName === '__custom__' && (
+            <Input
+              className="mt-2"
+              value={customListName}
+              onChange={(e) => setCustomListName(e.target.value)}
+              placeholder="שם רשימה חדשה"
+            />
+          )}
+        </div>
         <div>
           <Label>מחיר יעד להתראה</Label>
           <Input type="number" value={targetPrice} onChange={(e) => setTargetPrice(e.target.value)} />

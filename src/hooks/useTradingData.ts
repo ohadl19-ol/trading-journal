@@ -68,6 +68,7 @@ export interface AddWatchlistInput {
   targetPrice: number | null
   alertDirection: AlertDirection
   notes: string
+  listName: string
 }
 
 export interface UpdateWatchlistInput {
@@ -75,6 +76,7 @@ export interface UpdateWatchlistInput {
   targetPrice?: number | null
   alertDirection?: AlertDirection
   notes?: string
+  listName?: string
 }
 
 function recalcEquity(positions: Position[], initialCapital: number): Position[] {
@@ -478,6 +480,7 @@ export function useTradingData(settings: AppSettings) {
         currentPrice: null,
         alertTriggered: false,
         alertTriggeredDate: null,
+        listName: input.listName,
       }
 
       const next = [newItem, ...watchlist]
@@ -492,6 +495,7 @@ export function useTradingData(settings: AppSettings) {
         targetPrice: input.targetPrice,
         alertDirection: input.alertDirection,
         notes: input.notes,
+        listName: input.listName,
       })
       await refresh()
     },
@@ -508,6 +512,7 @@ export function useTradingData(settings: AppSettings) {
         targetPrice: input.targetPrice !== undefined ? input.targetPrice : item.targetPrice,
         alertDirection: input.alertDirection ?? item.alertDirection,
         notes: input.notes !== undefined ? input.notes : item.notes,
+        listName: input.listName ?? item.listName,
         // שינוי יעד/כיוון מאפס את מצב ההתראה בצד הלקוח, בדיוק כמו בשרת
         alertTriggered:
           input.targetPrice !== undefined || input.alertDirection !== undefined ? false : item.alertTriggered,
@@ -525,6 +530,7 @@ export function useTradingData(settings: AppSettings) {
         targetPrice: input.targetPrice,
         alertDirection: input.alertDirection,
         notes: input.notes,
+        listName: input.listName,
       })
       await refresh()
     },

@@ -94,6 +94,7 @@ export interface WatchlistItem {
   currentPrice: number | null // מחיר נוכחי (חי, מ-GOOGLEFINANCE)
   alertTriggered: boolean // האם ההתראה כבר הופעלה
   alertTriggeredDate: string | null // מתי ההתראה הופעלה
+  listName: string // לאיזו רשימת מעקב הפריט שייך (למשל "הרשימה שלי" / "מעקב שבועי")
 }
 
 // ==== הגדרות ====

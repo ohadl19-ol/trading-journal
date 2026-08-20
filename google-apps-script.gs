@@ -14,8 +14,11 @@ var NOTES_SHEET_NAME = 'הערות ותוכנית מסחר';
 // כותרות לשונית "רשימת מעקב"
 var WATCHLIST_HEADERS = [
   'מזהה מעקב', 'סימול', 'תאריך הוספה', 'מחיר יעד', 'כיוון התראה',
-  'הערות', 'מחיר נוכחי', 'התראה הופעלה', 'תאריך הפעלת התראה',
+  'הערות', 'מחיר נוכחי', 'התראה הופעלה', 'תאריך הפעלת התראה', 'רשימה',
 ];
+
+// שם הרשימה שכל פריט ישן (מלפני הוספת התכונה הזו) משתייך אליו כברירת מחדל
+var DEFAULT_WATCHLIST_NAME = 'הרשימה שלי';
 
 // כותרות לשונית "פוזיציות" - הסדר קובע את מבנה השורות בכל הקוד
 var POSITIONS_HEADERS = [
@@ -553,6 +556,7 @@ function handleWatchlistAdd_(body) {
     '', // מחיר נוכחי - יוזן כנוסחה חיה למטה
     false,
     '',
+    body.listName || DEFAULT_WATCHLIST_NAME,
   ];
   sheet.appendRow(row);
 
@@ -583,6 +587,9 @@ function handleWatchlistUpdate_(body) {
   }
   if (body.notes !== undefined && body.notes !== null) {
     setCell('הערות', body.notes);
+  }
+  if (body.listName !== undefined && body.listName !== null) {
+    setCell('רשימה', body.listName);
   }
   // שינוי יעד/כיוון מאפס את מצב ההתראה, כדי שתקבל התראה חדשה אם המחיר יחצה שוב
   if (body.targetPrice !== undefined || body.alertDirection !== undefined) {
@@ -617,6 +624,7 @@ function readWatchlist_() {
       currentPrice: row[6] === '' ? null : Number(row[6]),
       alertTriggered: row[7] === true,
       alertTriggeredDate: row[8] ? toIsoString_(row[8]) : null,
+      listName: row[9] || DEFAULT_WATCHLIST_NAME,
     };
   });
 }
