@@ -1,4 +1,4 @@
-import type { CalculatorResult } from '@/types'
+import type { CalculatorResult, Position } from '@/types'
 
 export interface CalculatorInput {
   riskAmount: number
@@ -60,6 +60,11 @@ export function rrColorClass(rr: number | null): string {
   if (rr >= 2) return 'text-win'
   if (rr >= 1) return 'text-warn'
   return 'text-loss'
+}
+
+/** האם המחיר הנוכחי של פוזיציה פתוחה חצה (ירד עד/מתחת ל)- הסטופ לוס שלה */
+export function isStopLossBreached(position: Position): boolean {
+  return position.status !== 'סגורה' && position.currentPrice != null && position.currentPrice <= position.stopLoss
 }
 
 export function formatCurrency(value: number | null | undefined, digits = 2): string {

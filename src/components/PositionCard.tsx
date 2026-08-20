@@ -3,7 +3,14 @@ import { ChevronDown, ExternalLink, Image as ImageIcon, Link as LinkIcon, PlusCi
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { formatCurrency, formatNumber, formatPercentage, percentageColorClass, rrColorClass } from '@/lib/calculations'
+import {
+  formatCurrency,
+  formatNumber,
+  formatPercentage,
+  isStopLossBreached,
+  percentageColorClass,
+  rrColorClass,
+} from '@/lib/calculations'
 import { tradingViewSymbolUrl } from '@/lib/tradingview'
 import type { Execution, Position } from '@/types'
 import { cn } from '@/lib/utils'
@@ -44,8 +51,7 @@ export function PositionCard({
     isOpen && position.currentPrice != null
       ? position.currentShares * (position.currentPrice - position.avgEntryPrice)
       : null
-  // עסקה קניה (long) חוצה סטופ כשהמחיר הנוכחי יורד עד/מתחת לרמת הסטופ
-  const stopBreached = isOpen && position.currentPrice != null && position.currentPrice <= position.stopLoss
+  const stopBreached = isStopLossBreached(position)
   // מרחק הסטופ מהכניסה באחוזים — מחושב תמיד בזמן אמת ממחיר הכניסה והסטופ השמורים,
   // כך שזה נשאר מדויק גם אחרי עדכון סטופ (טריילינג סטופ)
   const stopPct =

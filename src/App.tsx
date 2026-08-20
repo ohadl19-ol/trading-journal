@@ -1,7 +1,8 @@
 import * as React from 'react'
-import { Calculator, BookOpen, BarChart3, Settings as SettingsIcon, LineChart, BookMarked, Eye, NotebookPen } from 'lucide-react'
+import { Calculator, BookOpen, BarChart3, Settings as SettingsIcon, LineChart, BookMarked, Eye, NotebookPen, LayoutDashboard } from 'lucide-react'
 import { Tabs } from '@/components/ui/tabs'
 import { ToastProvider } from '@/components/ui/toast'
+import { DashboardPage } from '@/pages/DashboardPage'
 import { CalculatorPage } from '@/pages/CalculatorPage'
 import { JournalPage } from '@/pages/JournalPage'
 import { StatisticsPage } from '@/pages/StatisticsPage'
@@ -15,10 +16,10 @@ import { computeEquitySummary } from '@/lib/statistics'
 import { getStoredTheme, applyTheme, type Theme } from '@/lib/theme'
 import type { AppSettings, DateRangeFilter } from '@/types'
 
-type TabValue = 'calculator' | 'journal' | 'statistics' | 'patterns' | 'watchlist' | 'notes' | 'settings'
+type TabValue = 'dashboard' | 'calculator' | 'journal' | 'statistics' | 'patterns' | 'watchlist' | 'notes' | 'settings'
 
 function AppShell() {
-  const [tab, setTab] = React.useState<TabValue>('calculator')
+  const [tab, setTab] = React.useState<TabValue>('dashboard')
   const [settings, setSettings] = React.useState<AppSettings>(() => loadSettings())
   const [filter, setFilter] = React.useState<DateRangeFilter>({ preset: 'month' })
   const [theme, setTheme] = React.useState<Theme>(() => getStoredTheme())
@@ -92,6 +93,7 @@ function AppShell() {
           value={tab}
           onChange={(v) => setTab(v as TabValue)}
           tabs={[
+            { value: 'dashboard', label: 'דשבורד', icon: <LayoutDashboard className="h-4 w-4" /> },
             { value: 'calculator', label: 'מחשבון', icon: <Calculator className="h-4 w-4" /> },
             { value: 'journal', label: 'יומן עסקאות', icon: <BookOpen className="h-4 w-4" /> },
             { value: 'statistics', label: 'סטטיסטיקה', icon: <BarChart3 className="h-4 w-4" /> },
@@ -101,6 +103,14 @@ function AppShell() {
           ]}
         />
 
+        {tab === 'dashboard' && (
+          <DashboardPage
+            positions={positions}
+            initialCapital={settings.initialCapital}
+            loading={loading}
+            onNavigate={(t) => setTab(t)}
+          />
+        )}
         {tab === 'calculator' && (
           <CalculatorPage settings={settings} onOpenTrade={openTrade} currentEquity={currentEquity} />
         )}

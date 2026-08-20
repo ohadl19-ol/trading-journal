@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { RefreshCw, Download, Images } from 'lucide-react'
 import { PositionCard } from '@/components/PositionCard'
+import { PositionCardSkeleton } from '@/components/ui/skeleton'
 import { PositionDialogs } from '@/components/PositionDialogs'
 import { DateRangeFilterBar } from '@/components/DateRangeFilterBar'
 import { Select } from '@/components/ui/select'
@@ -185,25 +186,31 @@ export function JournalPage({
       </div>
 
       <div className="space-y-3">
-        {sorted.length === 0 && (
-          <div className="rounded-xl border border-dashed border-border bg-surface p-10 text-center text-text-muted">
-            אין עסקאות התואמות את הסינון
-          </div>
+        {loading && positions.length === 0 ? (
+          Array.from({ length: 4 }).map((_, i) => <PositionCardSkeleton key={i} />)
+        ) : (
+          <>
+            {sorted.length === 0 && (
+              <div className="rounded-xl border border-dashed border-border bg-surface p-10 text-center text-text-muted">
+                אין עסקאות התואמות את הסינון
+              </div>
+            )}
+            {sorted.map((position) => (
+              <PositionCard
+                key={position.tradeId}
+                position={position}
+                executions={executionsByTrade.get(position.tradeId) ?? []}
+                onAddShares={() => setDialogState({ position, mode: 'add' })}
+                onTrim={() => setDialogState({ position, mode: 'trim' })}
+                onClose={() => setDialogState({ position, mode: 'close' })}
+                onEditChart={() => setDialogState({ position, mode: 'chart' })}
+                onEditDetails={() => setDialogState({ position, mode: 'edit' })}
+                onDelete={() => setDialogState({ position, mode: 'delete' })}
+                onToggleFavorite={() => onToggleFavorite(position.tradeId)}
+              />
+            ))}
+          </>
         )}
-        {sorted.map((position) => (
-          <PositionCard
-            key={position.tradeId}
-            position={position}
-            executions={executionsByTrade.get(position.tradeId) ?? []}
-            onAddShares={() => setDialogState({ position, mode: 'add' })}
-            onTrim={() => setDialogState({ position, mode: 'trim' })}
-            onClose={() => setDialogState({ position, mode: 'close' })}
-            onEditChart={() => setDialogState({ position, mode: 'chart' })}
-            onEditDetails={() => setDialogState({ position, mode: 'edit' })}
-            onDelete={() => setDialogState({ position, mode: 'delete' })}
-            onToggleFavorite={() => onToggleFavorite(position.tradeId)}
-          />
-        ))}
       </div>
 
       <PositionDialogs
