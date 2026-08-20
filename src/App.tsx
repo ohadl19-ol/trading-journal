@@ -12,7 +12,9 @@ import { WatchlistPage } from '@/pages/WatchlistPage'
 import { NotesPage } from '@/pages/NotesPage'
 import { useTradingData } from '@/hooks/useTradingData'
 import { loadSettings, saveSettings } from '@/lib/storage'
-import { computeEquitySummary } from '@/lib/statistics'
+import { computeEquitySummary, computeEquityCurve } from '@/lib/statistics'
+import { formatCurrency } from '@/lib/calculations'
+import { Sparkline } from '@/components/Sparkline'
 import { getStoredTheme, applyTheme, type Theme } from '@/lib/theme'
 import type { AppSettings, DateRangeFilter } from '@/types'
 
@@ -51,6 +53,11 @@ function AppShell() {
     () => computeEquitySummary(positions, settings.initialCapital).currentEquity,
     [positions, settings.initialCapital],
   )
+  // נקודות אחרונות בעקומת ההון, למגמת שווי זעירה בהדר (לא תחליף לעקומה המלאה בעמוד סטטיסטיקה)
+  const equitySparkline = React.useMemo(() => {
+    const curve = computeEquityCurve(positions, settings.initialCapital)
+    return curve.slice(-20).map((p) => p.equity)
+  }, [positions, settings.initialCapital])
 
   function handleSaveSettings(next: AppSettings) {
     setSettings(next)
@@ -78,13 +85,29 @@ function AppShell() {
               {syncError}
             </span>
           )}
-          <button
-            onClick={() => setTab('settings')}
-            className={`flex h-9 w-9 items-center justify-center rounded-lg border border-border text-text-muted hover:text-text ${settings.webAppUrl && !syncError ? 'mr-auto' : ''} ${tab === 'settings' ? 'bg-accent/15 text-accent' : ''}`}
-            title="הגדרות"
+          <div
+            className={`flex items-center gap-3 ${settings.webAppUrl && !syncError ? 'mr-auto' : ''}`}
           >
-            <SettingsIcon className="h-4 w-4" />
-          </button>
+            {equitySparkline.length >= 2 && (
+              <button
+                onClick={() => setTab('dashboard')}
+                className="hidden items-center gap-2 rounded-lg border border-border px-2.5 py-1.5 hover:bg-surface-2 sm:flex"
+                title="שווי חשבון נוכחי — למעבר לדשבורד"
+              >
+                <span className="num-tabular text-sm font-semibold text-text">
+                  ${formatCurrency(currentEquity)}
+                </span>
+                <Sparkline values={equitySparkline} />
+              </button>
+            )}
+            <button
+              onClick={() => setTab('settings')}
+              className={`flex h-9 w-9 items-center justify-center rounded-lg border border-border text-text-muted hover:text-text ${tab === 'settings' ? 'bg-accent/15 text-accent' : ''}`}
+              title="הגדרות"
+            >
+              <SettingsIcon className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </header>
 

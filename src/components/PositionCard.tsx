@@ -1,8 +1,9 @@
 import * as React from 'react'
-import { ChevronDown, ExternalLink, Image as ImageIcon, Link as LinkIcon, PlusCircle, MinusCircle, XCircle, Pencil, Trash2, AlertOctagon, TrendingUp, Star } from 'lucide-react'
+import { ChevronDown, ExternalLink, Image as ImageIcon, Link as LinkIcon, PlusCircle, MinusCircle, XCircle, Pencil, Trash2, AlertOctagon, TrendingUp, Star, MoreVertical } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { DropdownMenu, DropdownMenuItem } from '@/components/ui/dropdown-menu'
 import {
   formatCurrency,
   formatNumber,
@@ -60,7 +61,7 @@ export function PositionCard({
       : null
 
   return (
-    <Card className={stopBreached ? 'border-loss ring-1 ring-loss/40' : undefined}>
+    <Card className={cn('animate-card-in', stopBreached && 'border-loss ring-1 ring-loss/40')}>
       <CardContent className="p-4">
         {stopBreached && (
           <div className="mb-3 flex items-center gap-2 rounded-lg bg-loss-bg px-3 py-2 text-sm font-medium text-loss">
@@ -194,50 +195,44 @@ export function PositionCard({
           />
         </div>
 
-        {isOpen && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button size="sm" variant="secondary" onClick={onAddShares}>
-              <PlusCircle className="h-3.5 w-3.5" />
-              חיזוק
-            </Button>
-            <Button size="sm" variant="secondary" onClick={onTrim}>
-              <MinusCircle className="h-3.5 w-3.5" />
-              מכירה חלקית
-            </Button>
-            <Button size="sm" variant="destructive" onClick={onClose}>
-              <XCircle className="h-3.5 w-3.5" />
-              סגירת עסקה
-            </Button>
-            <Button size="sm" variant="outline" onClick={onEditChart}>
-              <LinkIcon className="h-3.5 w-3.5" />
-              {position.chartUrl ? 'עריכת קישור צ׳ארט' : 'הוסף קישור צ׳ארט'}
-            </Button>
-            <Button size="sm" variant="ghost" onClick={onEditDetails}>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {isOpen && (
+            <>
+              <Button size="sm" variant="secondary" onClick={onAddShares}>
+                <PlusCircle className="h-3.5 w-3.5" />
+                חיזוק
+              </Button>
+              <Button size="sm" variant="secondary" onClick={onTrim}>
+                <MinusCircle className="h-3.5 w-3.5" />
+                מכירה חלקית
+              </Button>
+              <Button size="sm" variant="destructive" onClick={onClose}>
+                <XCircle className="h-3.5 w-3.5" />
+                סגירת עסקה
+              </Button>
+            </>
+          )}
+          <Button size="sm" variant="outline" onClick={onEditChart}>
+            <LinkIcon className="h-3.5 w-3.5" />
+            {position.chartUrl ? 'עריכת קישור צ׳ארט' : 'הוסף קישור צ׳ארט'}
+          </Button>
+          <DropdownMenu
+            trigger={
+              <Button size="sm" variant="ghost" title="פעולות נוספות">
+                <MoreVertical className="h-3.5 w-3.5" />
+              </Button>
+            }
+          >
+            <DropdownMenuItem onClick={onEditDetails}>
               <Pencil className="h-3.5 w-3.5" />
               עריכת פרטים
-            </Button>
-            <Button size="sm" variant="ghost" className="text-loss hover:bg-loss-bg" onClick={onDelete}>
+            </DropdownMenuItem>
+            <DropdownMenuItem className="text-loss hover:bg-loss-bg" onClick={onDelete}>
               <Trash2 className="h-3.5 w-3.5" />
               מחיקה
-            </Button>
-          </div>
-        )}
-        {!isOpen && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={onEditChart}>
-              <LinkIcon className="h-3.5 w-3.5" />
-              {position.chartUrl ? 'עריכת קישור צ׳ארט' : 'הוסף קישור צ׳ארט'}
-            </Button>
-            <Button size="sm" variant="ghost" onClick={onEditDetails}>
-              <Pencil className="h-3.5 w-3.5" />
-              עריכת פרטים
-            </Button>
-            <Button size="sm" variant="ghost" className="text-loss hover:bg-loss-bg" onClick={onDelete}>
-              <Trash2 className="h-3.5 w-3.5" />
-              מחיקה
-            </Button>
-          </div>
-        )}
+            </DropdownMenuItem>
+          </DropdownMenu>
+        </div>
 
         <button
           onClick={() => setExpanded((v) => !v)}
