@@ -114,7 +114,7 @@ export function StatisticsPage({ positions, initialCapital, filter, onFilterChan
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+      <StatSection title="הון וביצועים">
         <StatCard
           icon={<TrendingUp className="h-4 w-4" />}
           label="הון התחלתי"
@@ -147,6 +147,9 @@ export function StatisticsPage({ positions, initialCapital, filter, onFilterChan
           value={formatPercentage(equity.pnlPercentage * 100)}
           valueClass={equity.pnlPercentage >= 0 ? 'text-win' : 'text-loss'}
         />
+      </StatSection>
+
+      <StatSection title="הצלחה והפסד">
         <StatCard label="עסקאות מנצחות" value={stats.winCount.toString()} valueClass="text-win" />
         <StatCard label="עסקאות מפסידות" value={stats.lossCount.toString()} valueClass="text-loss" />
         <StatCard label="אחוז מנצחות" value={formatPercentage(stats.winRate * 100)} />
@@ -164,6 +167,9 @@ export function StatisticsPage({ positions, initialCapital, filter, onFilterChan
           label="עסקאות סגורות"
           value={stats.closedTrades.length.toString()}
         />
+      </StatSection>
+
+      <StatSection title="סיכון">
         <StatCard
           icon={<ArrowDownRight className="h-4 w-4" />}
           label="Max Drawdown"
@@ -184,6 +190,9 @@ export function StatisticsPage({ positions, initialCapital, filter, onFilterChan
           label="רצפים ארוכים ביותר"
           value={`${streaks.longestWinStreak} WIN / ${streaks.longestLossStreak} LOSS`}
         />
+      </StatSection>
+
+      <StatSection title="התנהגות ותזמון">
         <StatCard
           icon={<Clock className="h-4 w-4" />}
           label="זמן החזקה ממוצע — מנצחות"
@@ -196,7 +205,7 @@ export function StatisticsPage({ positions, initialCapital, filter, onFilterChan
           value={formatHoldingTime(holdingTime.avgHoldHoursLoss)}
           valueClass="text-loss"
         />
-      </div>
+      </StatSection>
 
       <Card>
         <CardHeader className="flex-row items-center justify-between gap-3">
@@ -341,6 +350,15 @@ export function StatisticsPage({ positions, initialCapital, filter, onFilterChan
           </div>
         </Dialog>
       )}
+    </div>
+  )
+}
+
+function StatSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <h2 className="text-sm font-semibold text-text-muted">{title}</h2>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">{children}</div>
     </div>
   )
 }
