@@ -1,18 +1,23 @@
 import * as React from 'react'
-import { Calculator as CalcIcon, Send, RefreshCw, Bookmark } from 'lucide-react'
+import { Calculator as CalcIcon, Send, RefreshCw, Bookmark, Clock } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
+import { Dialog } from '@/components/ui/dialog'
 import { calculatePosition, formatCurrency, formatPercentage, percentageColorClass, rrColorClass } from '@/lib/calculations'
 import { DEFAULT_WATCHLIST_NAMES } from '@/lib/watchlist'
+import { getIsraelHourMinute } from '@/lib/time'
 import { PATTERN_OPTIONS } from '@/types'
 import type { AppSettings, WatchlistItem } from '@/types'
 import type { AddWatchlistInput, OpenTradeInput } from '@/hooks/useTradingData'
 import { useToast } from '@/components/ui/toast'
 import { cn, combineDateTimeToIso } from '@/lib/utils'
+
+/** לפי חוק המסחר שלך: כניסה לעסקה רק אחרי השעה הזו (שעון ישראל) */
+const TRADING_START_HOUR = 20
 
 interface CalculatorPageProps {
   settings: AppSettings
@@ -57,6 +62,15 @@ export function CalculatorPage({
   // כשמגיעים לכאן דרך "בצע כניסה לעסקה" בפריט מעקב עם תוכנית שמורה — נזכור את מזהה
   // הפריט, כדי שברגע שהעסקה תיפתח בהצלחה נמחק אותו מרשימת המעקב (הוא כבר "התממש")
   const [loadedFromWatchId, setLoadedFromWatchId] = React.useState<string | null>(null)
+  // תזכורת חוק המסחר: כניסה רק אחרי 20:00 שעון ישראל — מתעדכן כל דקה כדי שהבאנר
+  // ייעלם אוטומטית ברגע שהשעה מגיעה, גם אם הטאב נשאר פתוח
+  const [israelTime, setIsraelTime] = React.useState(() => getIsraelHourMinute())
+  const [showEarlyEntryConfirm, setShowEarlyEntryConfirm] = React.useState(false)
+  React.useEffect(() => {
+    const interval = setInterval(() => setIsraelTime(getIsraelHourMinute()), 60_000)
+    return () => clearInterval(interval)
+  }, [])
+  const beforeTradingHour = israelTime.hour < TRADING_START_HOUR
 
   // טעינת תוכנית מסחר שמורה מרשימת המעקב לתוך הטופס
   React.useEffect(() => {
@@ -146,7 +160,7 @@ export function CalculatorPage({
     setLoadedFromWatchId(null)
   }
 
-  async function handleSubmit() {
+  async function performSubmit() {
     if (!result) return
     setSubmitting(true)
     try {
@@ -175,6 +189,17 @@ export function CalculatorPage({
     }
   }
 
+  // לפני 20:00 שעון ישראל עוצרים לרגע ומבקשים אישור מודע במקום לשלוח מיד —
+  // התזכורת בבאנר למעלה כבר מוצגת תמיד, זה רק שלב נוסף ברגע הקריטי של הכניסה בפועל
+  function handleSubmit() {
+    if (!result) return
+    if (beforeTradingHour) {
+      setShowEarlyEntryConfirm(true)
+      return
+    }
+    performSubmit()
+  }
+
   async function handleSaveToWatchlist() {
     if (!symbol.trim()) return
     setSavingToWatchlist(true)
@@ -200,6 +225,7 @@ export function CalculatorPage({
   }
 
   return (
+    <>
     <div className="grid gap-4 lg:grid-cols-2">
       <Card>
         <CardHeader>
@@ -209,6 +235,12 @@ export function CalculatorPage({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {beforeTradingHour && (
+            <div className="flex items-center gap-2 rounded-lg bg-warn-bg px-3 py-2 text-sm font-medium text-warn">
+              <Clock className="h-4 w-4 shrink-0" />
+              תזכורת: לפי חוק המסחר שלך, כניסה לעסקה רק אחרי השעה 20:00 (שעון ישראל) — כרגע השעה {israelTime.label}
+            </div>
+          )}
           {loadedFromWatchId && (
             <div className="flex items-center justify-between gap-2 rounded-lg bg-accent/10 px-3 py-2 text-sm text-accent">
               <span className="flex items-center gap-1.5">
@@ -437,6 +469,33 @@ export function CalculatorPage({
         </CardContent>
       </Card>
     </div>
+
+    {showEarlyEntryConfirm && (
+      <Dialog
+        open
+        onClose={() => setShowEarlyEntryConfirm(false)}
+        title="כניסה מוקדמת לעסקה"
+        description={`השעה עכשיו ${israelTime.label} — לפי חוק המסחר שלך, כניסה אמורה להתבצע רק אחרי 20:00. להמשיך בכל זאת?`}
+      >
+        <div className="flex gap-2">
+          <Button variant="outline" className="flex-1" onClick={() => setShowEarlyEntryConfirm(false)}>
+            ביטול, אחכה
+          </Button>
+          <Button
+            variant="destructive"
+            className="flex-1"
+            disabled={submitting}
+            onClick={() => {
+              setShowEarlyEntryConfirm(false)
+              performSubmit()
+            }}
+          >
+            כן, המשך בכל זאת
+          </Button>
+        </div>
+      </Dialog>
+    )}
+    </>
   )
 }
 
