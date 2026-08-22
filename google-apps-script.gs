@@ -16,7 +16,7 @@ var WATCHLIST_HEADERS = [
   'מזהה מעקב', 'סימול', 'תאריך הוספה', 'מחיר יעד', 'כיוון התראה',
   'הערות', 'מחיר נוכחי', 'התראה הופעלה', 'תאריך הפעלת התראה', 'רשימה',
   'מחיר כניסה מתוכנן', 'סטופ לוס מתוכנן', 'יעד מתוכנן', 'סכום סיכון מתוכנן', 'תבנית מתוכננת',
-  'כמות מניות מתוכננת',
+  'כמות מניות מתוכננת', 'סדר תצוגה',
 ];
 
 // שם הרשימה שכל פריט ישן (מלפני הוספת התכונה הזו) משתייך אליו כברירת מחדל
@@ -565,6 +565,7 @@ function handleWatchlistAdd_(body) {
     body.plannedRiskAmount === undefined || body.plannedRiskAmount === null ? '' : body.plannedRiskAmount,
     body.plannedPattern || '',
     body.plannedShares === undefined || body.plannedShares === null ? '' : body.plannedShares,
+    body.sortOrder === undefined || body.sortOrder === null ? 0 : body.sortOrder,
   ];
   sheet.appendRow(row);
 
@@ -617,6 +618,9 @@ function handleWatchlistUpdate_(body) {
   if (body.plannedShares !== undefined) {
     setCell('כמות מניות מתוכננת', body.plannedShares === null ? '' : body.plannedShares);
   }
+  if (body.sortOrder !== undefined && body.sortOrder !== null) {
+    setCell('סדר תצוגה', body.sortOrder);
+  }
   // שינוי יעד/כיוון מאפס את מצב ההתראה, כדי שתקבל התראה חדשה אם המחיר יחצה שוב
   if (body.targetPrice !== undefined || body.alertDirection !== undefined) {
     setCell('התראה הופעלה', false);
@@ -657,6 +661,7 @@ function readWatchlist_() {
       plannedRiskAmount: row[13] === '' ? null : Number(row[13]),
       plannedPattern: row[14] || '',
       plannedShares: row[15] === '' ? null : Number(row[15]),
+      sortOrder: row[16] === '' || row[16] === undefined ? 0 : Number(row[16]),
     };
   });
 }

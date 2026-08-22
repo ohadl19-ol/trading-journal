@@ -89,6 +89,7 @@ export interface UpdateWatchlistInput {
   plannedRiskAmount?: number | null
   plannedShares?: number | null
   plannedPattern?: string
+  sortOrder?: number
 }
 
 function recalcEquity(positions: Position[], initialCapital: number): Position[] {
@@ -481,6 +482,9 @@ export function useTradingData(settings: AppSettings) {
     async (input: AddWatchlistInput) => {
       const watchId = generateId('W')
       const addedDate = nowIso()
+      // פריט חדש מוצג ראשון כברירת מחדל בתוך הרשימה שלו — קטן ממה שקיים כרגע
+      const sameListOrders = watchlist.filter((w) => w.listName === input.listName).map((w) => w.sortOrder)
+      const sortOrder = sameListOrders.length > 0 ? Math.min(...sameListOrders) - 1 : 0
 
       const newItem: WatchlistItem = {
         watchId,
@@ -499,6 +503,7 @@ export function useTradingData(settings: AppSettings) {
         plannedRiskAmount: input.plannedRiskAmount ?? null,
         plannedShares: input.plannedShares ?? null,
         plannedPattern: input.plannedPattern ?? '',
+        sortOrder,
       }
 
       const next = [newItem, ...watchlist]
@@ -514,6 +519,7 @@ export function useTradingData(settings: AppSettings) {
         alertDirection: input.alertDirection,
         notes: input.notes,
         listName: input.listName,
+        sortOrder,
         plannedEntryPrice: input.plannedEntryPrice,
         plannedStopLoss: input.plannedStopLoss,
         plannedTargetPrice: input.plannedTargetPrice,
@@ -543,6 +549,7 @@ export function useTradingData(settings: AppSettings) {
         plannedRiskAmount: input.plannedRiskAmount !== undefined ? input.plannedRiskAmount : item.plannedRiskAmount,
         plannedShares: input.plannedShares !== undefined ? input.plannedShares : item.plannedShares,
         plannedPattern: input.plannedPattern ?? item.plannedPattern,
+        sortOrder: input.sortOrder ?? item.sortOrder,
         // שינוי יעד/כיוון מאפס את מצב ההתראה בצד הלקוח, בדיוק כמו בשרת
         alertTriggered:
           input.targetPrice !== undefined || input.alertDirection !== undefined ? false : item.alertTriggered,
@@ -567,6 +574,7 @@ export function useTradingData(settings: AppSettings) {
         plannedRiskAmount: input.plannedRiskAmount,
         plannedShares: input.plannedShares,
         plannedPattern: input.plannedPattern,
+        sortOrder: input.sortOrder,
       })
       await refresh()
     },

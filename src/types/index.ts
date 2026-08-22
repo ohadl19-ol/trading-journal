@@ -95,6 +95,7 @@ export interface WatchlistItem {
   alertTriggered: boolean // האם ההתראה כבר הופעלה
   alertTriggeredDate: string | null // מתי ההתראה הופעלה
   listName: string // לאיזו רשימת מעקב הפריט שייך (למשל "הרשימה שלי" / "מעקב שבועי")
+  sortOrder: number // סדר תצוגה ידני בתוך הרשימה (מספר קטן יותר = מוצג קודם) — נקבע ע"י המשתמש עם חצי העברה
   // תוכנית מסחר שמורה (נשמרה מהמחשבון בלי לבצע כניסה בפועל) — כשקיימת, אפשר לפתוח
   // אותה שוב במחשבון, לערוך ואז לבצע כניסה אמיתית לעסקה
   plannedEntryPrice: number | null

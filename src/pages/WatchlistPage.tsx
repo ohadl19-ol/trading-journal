@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Plus, Trash2, Bell, BellRing, TrendingUp, TrendingDown, Pencil, Send, Bookmark } from 'lucide-react'
+import { Plus, Trash2, Bell, BellRing, TrendingUp, TrendingDown, Pencil, Send, Bookmark, ArrowUp, ArrowDown } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -43,9 +43,30 @@ export function WatchlistPage({ watchlist, onAdd, onUpdate, onDelete, onOpenTrad
 
   const isValid = symbol.trim().length > 0
   const itemsInActiveList = React.useMemo(
-    () => watchlist.filter((w) => (w.listName || DEFAULT_WATCHLIST_NAME) === activeList),
+    () =>
+      watchlist
+        .filter((w) => (w.listName || DEFAULT_WATCHLIST_NAME) === activeList)
+        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)),
     [watchlist, activeList],
   )
+
+  // מזיזים מניה מעלה/מטה בתוך הרשימה הפעילה: מחליפים את מיקומה במערך הממוין ואז ממספרים
+  // מחדש את כל הרשימה ברצף (0,1,2...) — כך שגם פריטים ישנים עם "סדר תצוגה" זהה (0, ברירת
+  // מחדל) מקבלים ערכים שונים ומובחנים בפעם הראשונה שמזיזים אותם, ולא נתקעים בטעות
+  async function handleMove(item: WatchlistItem, direction: 'up' | 'down') {
+    const index = itemsInActiveList.findIndex((w) => w.watchId === item.watchId)
+    const targetIndex = direction === 'up' ? index - 1 : index + 1
+    if (targetIndex < 0 || targetIndex >= itemsInActiveList.length) return
+
+    const reordered = [...itemsInActiveList]
+    ;[reordered[index], reordered[targetIndex]] = [reordered[targetIndex], reordered[index]]
+
+    try {
+      await Promise.all(reordered.map((w, i) => onUpdate({ watchId: w.watchId, sortOrder: i })))
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'שגיאה בשינוי הסדר', 'error')
+    }
+  }
 
   async function handleAdd() {
     setSubmitting(true)
@@ -149,13 +170,15 @@ export function WatchlistPage({ watchlist, onAdd, onUpdate, onDelete, onOpenTrad
             אין עדיין מניות ב"{activeList}"
           </div>
         )}
-        {itemsInActiveList.map((item) => (
+        {itemsInActiveList.map((item, index) => (
           <WatchlistCard
             key={item.watchId}
             item={item}
             onEdit={() => setEditItem(item)}
             onDelete={() => handleDelete(item.watchId, item.symbol)}
             onOpenTrade={() => onOpenTradeFromPlan(item)}
+            onMoveUp={index > 0 ? () => handleMove(item, 'up') : undefined}
+            onMoveDown={index < itemsInActiveList.length - 1 ? () => handleMove(item, 'down') : undefined}
           />
         ))}
       </div>
@@ -181,11 +204,15 @@ function WatchlistCard({
   onEdit,
   onDelete,
   onOpenTrade,
+  onMoveUp,
+  onMoveDown,
 }: {
   item: WatchlistItem
   onEdit: () => void
   onDelete: () => void
   onOpenTrade: () => void
+  onMoveUp?: () => void
+  onMoveDown?: () => void
 }) {
   const hasTarget = item.targetPrice !== null
   const distancePct =
@@ -199,8 +226,26 @@ function WatchlistCard({
       : null
 
   return (
-    <Card className={item.alertTriggered ? 'border-warn ring-1 ring-warn/40' : undefined}>
-      <CardContent className="p-4">
+    <Card className={cn('flex', item.alertTriggered && 'border-warn ring-1 ring-warn/40')}>
+      <div className="flex shrink-0 flex-col justify-center gap-0.5 border-l border-border px-1.5">
+        <button
+          onClick={onMoveUp}
+          disabled={!onMoveUp}
+          className="rounded-md p-1 text-text-muted hover:bg-surface-2 hover:text-text disabled:pointer-events-none disabled:opacity-20"
+          title="הזז למעלה"
+        >
+          <ArrowUp className="h-4 w-4" />
+        </button>
+        <button
+          onClick={onMoveDown}
+          disabled={!onMoveDown}
+          className="rounded-md p-1 text-text-muted hover:bg-surface-2 hover:text-text disabled:pointer-events-none disabled:opacity-20"
+          title="הזז למטה"
+        >
+          <ArrowDown className="h-4 w-4" />
+        </button>
+      </div>
+      <CardContent className="flex-1 p-4">
         {item.alertTriggered && (
           <div className="mb-3 flex items-center gap-2 rounded-lg bg-warn-bg px-3 py-2 text-sm font-medium text-warn">
             <BellRing className="h-4 w-4 shrink-0" />
