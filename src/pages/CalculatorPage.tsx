@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Calculator as CalcIcon, Send, RefreshCw } from 'lucide-react'
+import { Calculator as CalcIcon, Send, RefreshCw, Bookmark } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -7,20 +7,34 @@ import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { calculatePosition, formatCurrency, formatPercentage, percentageColorClass, rrColorClass } from '@/lib/calculations'
+import { DEFAULT_WATCHLIST_NAMES } from '@/lib/watchlist'
 import { PATTERN_OPTIONS } from '@/types'
-import type { AppSettings } from '@/types'
-import type { OpenTradeInput } from '@/hooks/useTradingData'
+import type { AppSettings, WatchlistItem } from '@/types'
+import type { AddWatchlistInput, OpenTradeInput } from '@/hooks/useTradingData'
 import { useToast } from '@/components/ui/toast'
 import { cn, combineDateTimeToIso } from '@/lib/utils'
 
 interface CalculatorPageProps {
   settings: AppSettings
   onOpenTrade: (input: OpenTradeInput) => Promise<void>
+  onSaveToWatchlist: (input: AddWatchlistInput) => Promise<void>
+  onDeleteWatchlistItem: (watchId: string) => Promise<void>
   /** שווי החשבון הנוכחי המחושב בפועל (הון התחלתי + רווח/הפסד ממומש + לא ממומש) */
   currentEquity: number
+  /** פריט מעקב עם תוכנית מסחר שמורה, שנבחר "בצע כניסה לעסקה" עליו ברשימת המעקב — ממלא את הטופס */
+  prefill: WatchlistItem | null
+  onPrefillConsumed: () => void
 }
 
-export function CalculatorPage({ settings, onOpenTrade, currentEquity }: CalculatorPageProps) {
+export function CalculatorPage({
+  settings,
+  onOpenTrade,
+  onSaveToWatchlist,
+  onDeleteWatchlistItem,
+  currentEquity,
+  prefill,
+  onPrefillConsumed,
+}: CalculatorPageProps) {
   const { toast } = useToast()
   const [symbol, setSymbol] = React.useState('')
   const [pattern, setPattern] = React.useState<string>('')
@@ -38,6 +52,29 @@ export function CalculatorPage({ settings, onOpenTrade, currentEquity }: Calcula
   const [entryDate, setEntryDate] = React.useState('')
   const [entryTime, setEntryTime] = React.useState('')
   const [submitting, setSubmitting] = React.useState(false)
+  const [savingToWatchlist, setSavingToWatchlist] = React.useState(false)
+  const [watchlistTarget, setWatchlistTarget] = React.useState<string>(DEFAULT_WATCHLIST_NAMES[1])
+  // כשמגיעים לכאן דרך "בצע כניסה לעסקה" בפריט מעקב עם תוכנית שמורה — נזכור את מזהה
+  // הפריט, כדי שברגע שהעסקה תיפתח בהצלחה נמחק אותו מרשימת המעקב (הוא כבר "התממש")
+  const [loadedFromWatchId, setLoadedFromWatchId] = React.useState<string | null>(null)
+
+  // טעינת תוכנית מסחר שמורה מרשימת המעקב לתוך הטופס
+  React.useEffect(() => {
+    if (!prefill) return
+    setSymbol(prefill.symbol)
+    if (prefill.plannedPattern) setPattern(prefill.plannedPattern)
+    if (prefill.plannedRiskAmount != null) setRiskAmount(prefill.plannedRiskAmount.toString())
+    if (prefill.plannedEntryPrice != null) setEntryPrice(prefill.plannedEntryPrice.toString())
+    if (prefill.plannedStopLoss != null) setStopLoss(prefill.plannedStopLoss.toString())
+    if (prefill.plannedTargetPrice != null) {
+      setTargetPrice(prefill.plannedTargetPrice.toString())
+      setTargetPriceTouched(true)
+    }
+    if (prefill.notes) setSetupReason(prefill.notes)
+    setLoadedFromWatchId(prefill.watchId)
+    onPrefillConsumed()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill])
 
   // כשהשווי הנוכחי המחושב מתעדכן (למשל אחרי טעינת נתונים מהשרת) ועדיין לא ערכת ידנית
   // את השדה בעצמך, ממלאים אותו אוטומטית עם השווי המעודכן
@@ -95,6 +132,20 @@ export function CalculatorPage({ settings, onOpenTrade, currentEquity }: Calcula
       })
     : null
 
+  function resetForm() {
+    setSymbol('')
+    setPattern('')
+    setEntryPrice('')
+    setStopLoss('')
+    setTargetPrice('')
+    setTargetPriceTouched(false)
+    setSetupReason('')
+    setChartUrl('')
+    setEntryDate('')
+    setEntryTime('')
+    setLoadedFromWatchId(null)
+  }
+
   async function handleSubmit() {
     if (!result) return
     setSubmitting(true)
@@ -111,21 +162,40 @@ export function CalculatorPage({ settings, onOpenTrade, currentEquity }: Calcula
         chartUrl,
         openDate: combineDateTimeToIso(entryDate, entryTime),
       })
+      // אם התוכנית הזו הגיעה מרשימת מעקב — היא כבר "התממשה" לעסקה אמיתית, אז מסירים אותה משם
+      if (loadedFromWatchId) {
+        await onDeleteWatchlistItem(loadedFromWatchId).catch(() => {})
+      }
       toast('העסקה נרשמה')
-      setSymbol('')
-      setPattern('')
-      setEntryPrice('')
-      setStopLoss('')
-      setTargetPrice('')
-      setTargetPriceTouched(false)
-      setSetupReason('')
-      setChartUrl('')
-      setEntryDate('')
-      setEntryTime('')
+      resetForm()
     } catch (err) {
       toast(err instanceof Error ? err.message : 'שגיאה ברישום העסקה', 'error')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  async function handleSaveToWatchlist() {
+    if (!symbol.trim()) return
+    setSavingToWatchlist(true)
+    try {
+      await onSaveToWatchlist({
+        symbol: symbol.trim(),
+        targetPrice: targetPriceNum,
+        alertDirection: 'above',
+        notes: setupReason,
+        listName: watchlistTarget,
+        plannedEntryPrice: entryPriceNum || null,
+        plannedStopLoss: stopLossNum || null,
+        plannedTargetPrice: targetPriceNum,
+        plannedRiskAmount: riskAmountNum || null,
+        plannedPattern: pattern,
+      })
+      toast(`נשמר למעקב — "${watchlistTarget}"`)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'שגיאה בשמירה למעקב', 'error')
+    } finally {
+      setSavingToWatchlist(false)
     }
   }
 
@@ -139,6 +209,17 @@ export function CalculatorPage({ settings, onOpenTrade, currentEquity }: Calcula
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {loadedFromWatchId && (
+            <div className="flex items-center justify-between gap-2 rounded-lg bg-accent/10 px-3 py-2 text-sm text-accent">
+              <span className="flex items-center gap-1.5">
+                <Bookmark className="h-3.5 w-3.5" />
+                נטען מתוכנית מסחר שמורה — ביצוע העסקה יסיר אותה מרשימת המעקב
+              </span>
+              <button type="button" onClick={resetForm} className="text-xs hover:underline">
+                נקה טופס
+              </button>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>סימול (Ticker) *</Label>
@@ -270,6 +351,29 @@ export function CalculatorPage({ settings, onOpenTrade, currentEquity }: Calcula
           <div>
             <Label>קישור צ'ארט מ-TradingView</Label>
             <Input value={chartUrl} onChange={(e) => setChartUrl(e.target.value)} placeholder="https://..." />
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Select
+              value={watchlistTarget}
+              onChange={(e) => setWatchlistTarget(e.target.value)}
+              className="sm:w-40"
+            >
+              {DEFAULT_WATCHLIST_NAMES.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </Select>
+            <Button
+              variant="outline"
+              className="flex-1"
+              disabled={!symbol.trim() || savingToWatchlist}
+              onClick={handleSaveToWatchlist}
+            >
+              <Bookmark className="h-4 w-4" />
+              {savingToWatchlist ? 'שומר...' : 'שמור למעקב (בלי לבצע עסקה)'}
+            </Button>
           </div>
 
           <Button className="w-full" disabled={!isValid || submitting} onClick={handleSubmit}>

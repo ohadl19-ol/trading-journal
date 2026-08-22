@@ -15,6 +15,7 @@ var NOTES_SHEET_NAME = 'הערות ותוכנית מסחר';
 var WATCHLIST_HEADERS = [
   'מזהה מעקב', 'סימול', 'תאריך הוספה', 'מחיר יעד', 'כיוון התראה',
   'הערות', 'מחיר נוכחי', 'התראה הופעלה', 'תאריך הפעלת התראה', 'רשימה',
+  'מחיר כניסה מתוכנן', 'סטופ לוס מתוכנן', 'יעד מתוכנן', 'סכום סיכון מתוכנן', 'תבנית מתוכננת',
 ];
 
 // שם הרשימה שכל פריט ישן (מלפני הוספת התכונה הזו) משתייך אליו כברירת מחדל
@@ -557,6 +558,11 @@ function handleWatchlistAdd_(body) {
     false,
     '',
     body.listName || DEFAULT_WATCHLIST_NAME,
+    body.plannedEntryPrice === undefined || body.plannedEntryPrice === null ? '' : body.plannedEntryPrice,
+    body.plannedStopLoss === undefined || body.plannedStopLoss === null ? '' : body.plannedStopLoss,
+    body.plannedTargetPrice === undefined || body.plannedTargetPrice === null ? '' : body.plannedTargetPrice,
+    body.plannedRiskAmount === undefined || body.plannedRiskAmount === null ? '' : body.plannedRiskAmount,
+    body.plannedPattern || '',
   ];
   sheet.appendRow(row);
 
@@ -590,6 +596,21 @@ function handleWatchlistUpdate_(body) {
   }
   if (body.listName !== undefined && body.listName !== null) {
     setCell('רשימה', body.listName);
+  }
+  if (body.plannedEntryPrice !== undefined) {
+    setCell('מחיר כניסה מתוכנן', body.plannedEntryPrice === null ? '' : body.plannedEntryPrice);
+  }
+  if (body.plannedStopLoss !== undefined) {
+    setCell('סטופ לוס מתוכנן', body.plannedStopLoss === null ? '' : body.plannedStopLoss);
+  }
+  if (body.plannedTargetPrice !== undefined) {
+    setCell('יעד מתוכנן', body.plannedTargetPrice === null ? '' : body.plannedTargetPrice);
+  }
+  if (body.plannedRiskAmount !== undefined) {
+    setCell('סכום סיכון מתוכנן', body.plannedRiskAmount === null ? '' : body.plannedRiskAmount);
+  }
+  if (body.plannedPattern !== undefined && body.plannedPattern !== null) {
+    setCell('תבנית מתוכננת', body.plannedPattern);
   }
   // שינוי יעד/כיוון מאפס את מצב ההתראה, כדי שתקבל התראה חדשה אם המחיר יחצה שוב
   if (body.targetPrice !== undefined || body.alertDirection !== undefined) {
@@ -625,6 +646,11 @@ function readWatchlist_() {
       alertTriggered: row[7] === true,
       alertTriggeredDate: row[8] ? toIsoString_(row[8]) : null,
       listName: row[9] || DEFAULT_WATCHLIST_NAME,
+      plannedEntryPrice: row[10] === '' ? null : Number(row[10]),
+      plannedStopLoss: row[11] === '' ? null : Number(row[11]),
+      plannedTargetPrice: row[12] === '' ? null : Number(row[12]),
+      plannedRiskAmount: row[13] === '' ? null : Number(row[13]),
+      plannedPattern: row[14] || '',
     };
   });
 }

@@ -69,6 +69,11 @@ export interface AddWatchlistInput {
   alertDirection: AlertDirection
   notes: string
   listName: string
+  plannedEntryPrice?: number | null
+  plannedStopLoss?: number | null
+  plannedTargetPrice?: number | null
+  plannedRiskAmount?: number | null
+  plannedPattern?: string
 }
 
 export interface UpdateWatchlistInput {
@@ -77,6 +82,11 @@ export interface UpdateWatchlistInput {
   alertDirection?: AlertDirection
   notes?: string
   listName?: string
+  plannedEntryPrice?: number | null
+  plannedStopLoss?: number | null
+  plannedTargetPrice?: number | null
+  plannedRiskAmount?: number | null
+  plannedPattern?: string
 }
 
 function recalcEquity(positions: Position[], initialCapital: number): Position[] {
@@ -481,6 +491,11 @@ export function useTradingData(settings: AppSettings) {
         alertTriggered: false,
         alertTriggeredDate: null,
         listName: input.listName,
+        plannedEntryPrice: input.plannedEntryPrice ?? null,
+        plannedStopLoss: input.plannedStopLoss ?? null,
+        plannedTargetPrice: input.plannedTargetPrice ?? null,
+        plannedRiskAmount: input.plannedRiskAmount ?? null,
+        plannedPattern: input.plannedPattern ?? '',
       }
 
       const next = [newItem, ...watchlist]
@@ -496,6 +511,11 @@ export function useTradingData(settings: AppSettings) {
         alertDirection: input.alertDirection,
         notes: input.notes,
         listName: input.listName,
+        plannedEntryPrice: input.plannedEntryPrice,
+        plannedStopLoss: input.plannedStopLoss,
+        plannedTargetPrice: input.plannedTargetPrice,
+        plannedRiskAmount: input.plannedRiskAmount,
+        plannedPattern: input.plannedPattern,
       })
       await refresh()
     },
@@ -513,6 +533,12 @@ export function useTradingData(settings: AppSettings) {
         alertDirection: input.alertDirection ?? item.alertDirection,
         notes: input.notes !== undefined ? input.notes : item.notes,
         listName: input.listName ?? item.listName,
+        plannedEntryPrice: input.plannedEntryPrice !== undefined ? input.plannedEntryPrice : item.plannedEntryPrice,
+        plannedStopLoss: input.plannedStopLoss !== undefined ? input.plannedStopLoss : item.plannedStopLoss,
+        plannedTargetPrice:
+          input.plannedTargetPrice !== undefined ? input.plannedTargetPrice : item.plannedTargetPrice,
+        plannedRiskAmount: input.plannedRiskAmount !== undefined ? input.plannedRiskAmount : item.plannedRiskAmount,
+        plannedPattern: input.plannedPattern ?? item.plannedPattern,
         // שינוי יעד/כיוון מאפס את מצב ההתראה בצד הלקוח, בדיוק כמו בשרת
         alertTriggered:
           input.targetPrice !== undefined || input.alertDirection !== undefined ? false : item.alertTriggered,
@@ -531,6 +557,11 @@ export function useTradingData(settings: AppSettings) {
         alertDirection: input.alertDirection,
         notes: input.notes,
         listName: input.listName,
+        plannedEntryPrice: input.plannedEntryPrice,
+        plannedStopLoss: input.plannedStopLoss,
+        plannedTargetPrice: input.plannedTargetPrice,
+        plannedRiskAmount: input.plannedRiskAmount,
+        plannedPattern: input.plannedPattern,
       })
       await refresh()
     },

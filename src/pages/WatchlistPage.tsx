@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Plus, Trash2, Bell, BellRing, TrendingUp, TrendingDown, Pencil } from 'lucide-react'
+import { Plus, Trash2, Bell, BellRing, TrendingUp, TrendingDown, Pencil, Send, Bookmark } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -8,10 +8,11 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { useToast } from '@/components/ui/toast'
-import { formatCurrency } from '@/lib/calculations'
+import { formatCurrency, percentageColorClass } from '@/lib/calculations'
 import { tradingViewSymbolUrl } from '@/lib/tradingview'
 import { cn } from '@/lib/utils'
 import { DEFAULT_WATCHLIST_NAMES, DEFAULT_WATCHLIST_NAME } from '@/lib/watchlist'
+import { PATTERN_OPTIONS } from '@/types'
 import type { AlertDirection, WatchlistItem } from '@/types'
 import type { AddWatchlistInput, UpdateWatchlistInput } from '@/hooks/useTradingData'
 
@@ -20,9 +21,11 @@ interface WatchlistPageProps {
   onAdd: (input: AddWatchlistInput) => Promise<void>
   onUpdate: (input: UpdateWatchlistInput) => Promise<void>
   onDelete: (watchId: string) => Promise<void>
+  /** "בצע כניסה לעסקה" על פריט עם תוכנית שמורה — מעביר למחשבון עם השדות ממולאים */
+  onOpenTradeFromPlan: (item: WatchlistItem) => void
 }
 
-export function WatchlistPage({ watchlist, onAdd, onUpdate, onDelete }: WatchlistPageProps) {
+export function WatchlistPage({ watchlist, onAdd, onUpdate, onDelete, onOpenTradeFromPlan }: WatchlistPageProps) {
   const { toast } = useToast()
   const [symbol, setSymbol] = React.useState('')
   const [targetPrice, setTargetPrice] = React.useState('')
@@ -152,6 +155,7 @@ export function WatchlistPage({ watchlist, onAdd, onUpdate, onDelete }: Watchlis
             item={item}
             onEdit={() => setEditItem(item)}
             onDelete={() => handleDelete(item.watchId, item.symbol)}
+            onOpenTrade={() => onOpenTradeFromPlan(item)}
           />
         ))}
       </div>
@@ -176,15 +180,22 @@ function WatchlistCard({
   item,
   onEdit,
   onDelete,
+  onOpenTrade,
 }: {
   item: WatchlistItem
   onEdit: () => void
   onDelete: () => void
+  onOpenTrade: () => void
 }) {
   const hasTarget = item.targetPrice !== null
   const distancePct =
     hasTarget && item.currentPrice !== null
       ? ((item.currentPrice - item.targetPrice!) / item.targetPrice!) * 100
+      : null
+  const hasPlan = item.plannedEntryPrice !== null && item.plannedStopLoss !== null
+  const planStopPct =
+    hasPlan && item.plannedEntryPrice! > item.plannedStopLoss!
+      ? ((item.plannedEntryPrice! - item.plannedStopLoss!) / item.plannedEntryPrice!) * 100
       : null
 
   return (
@@ -225,28 +236,60 @@ function WatchlistCard({
           </div>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
-          <div className="flex items-center gap-2 text-sm">
-            <Bell className="h-3.5 w-3.5 text-text-muted" />
-            {hasTarget ? (
-              <span className="flex items-center gap-1">
-                {item.alertDirection === 'above' ? (
-                  <TrendingUp className="h-3.5 w-3.5 text-win" />
-                ) : (
-                  <TrendingDown className="h-3.5 w-3.5 text-loss" />
-                )}
-                יעד: ${formatCurrency(item.targetPrice!)}
-                {distancePct !== null && (
-                  <span className={cn('num-tabular text-xs', distancePct >= 0 ? 'text-win' : 'text-loss')}>
-                    ({distancePct >= 0 ? '+' : ''}
-                    {distancePct.toFixed(1)}%)
-                  </span>
-                )}
-              </span>
-            ) : (
-              <span className="text-text-muted">בלי יעד התראה</span>
-            )}
+        <div className="flex items-center gap-2 border-t border-border pt-3 text-sm">
+          <Bell className="h-3.5 w-3.5 text-text-muted" />
+          {hasTarget ? (
+            <span className="flex items-center gap-1">
+              {item.alertDirection === 'above' ? (
+                <TrendingUp className="h-3.5 w-3.5 text-win" />
+              ) : (
+                <TrendingDown className="h-3.5 w-3.5 text-loss" />
+              )}
+              יעד: ${formatCurrency(item.targetPrice!)}
+              {distancePct !== null && (
+                <span className={cn('num-tabular text-xs', distancePct >= 0 ? 'text-win' : 'text-loss')}>
+                  ({distancePct >= 0 ? '+' : ''}
+                  {distancePct.toFixed(1)}%)
+                </span>
+              )}
+            </span>
+          ) : (
+            <span className="text-text-muted">בלי יעד התראה</span>
+          )}
+        </div>
+
+        {hasPlan && (
+          <div className="mt-2 grid grid-cols-2 gap-2 rounded-lg border border-accent/30 bg-accent/5 p-3 text-sm sm:grid-cols-4">
+            <div className="col-span-2 flex items-center gap-1.5 text-xs font-medium text-accent sm:col-span-4">
+              <Bookmark className="h-3.5 w-3.5" />
+              תוכנית מסחר שמורה{item.plannedPattern && ` · ${item.plannedPattern}`}
+            </div>
+            <PlanField label="כניסה" value={`$${formatCurrency(item.plannedEntryPrice)}`} />
+            <PlanField
+              label="סטופ"
+              value={`$${formatCurrency(item.plannedStopLoss)}${planStopPct !== null ? ` (-${planStopPct.toFixed(1)}%)` : ''}`}
+              className={percentageColorClass(planStopPct)}
+            />
+            <PlanField
+              label="יעד"
+              value={item.plannedTargetPrice !== null ? `$${formatCurrency(item.plannedTargetPrice)}` : '—'}
+            />
+            <PlanField
+              label="סיכון"
+              value={item.plannedRiskAmount !== null ? `$${formatCurrency(item.plannedRiskAmount)}` : '—'}
+            />
           </div>
+        )}
+
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          {hasPlan ? (
+            <Button size="sm" variant="success" onClick={onOpenTrade}>
+              <Send className="h-3.5 w-3.5" />
+              בצע כניסה לעסקה
+            </Button>
+          ) : (
+            <span />
+          )}
           <div className="flex gap-2">
             <Button size="sm" variant="ghost" onClick={onEdit}>
               <Pencil className="h-3.5 w-3.5" />
@@ -260,6 +303,15 @@ function WatchlistCard({
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+function PlanField({ label, value, className }: { label: string; value: string; className?: string }) {
+  return (
+    <div>
+      <div className="text-[11px] text-text-muted">{label}</div>
+      <div className={cn('font-medium num-tabular', className)}>{value}</div>
+    </div>
   )
 }
 
@@ -280,6 +332,13 @@ function EditWatchlistDialog({
   const currentList = item.listName || DEFAULT_WATCHLIST_NAME
   const [listName, setListName] = React.useState(currentList)
   const [customListName, setCustomListName] = React.useState('')
+  const [planEntry, setPlanEntry] = React.useState(item.plannedEntryPrice != null ? String(item.plannedEntryPrice) : '')
+  const [planStop, setPlanStop] = React.useState(item.plannedStopLoss != null ? String(item.plannedStopLoss) : '')
+  const [planTarget, setPlanTarget] = React.useState(
+    item.plannedTargetPrice != null ? String(item.plannedTargetPrice) : '',
+  )
+  const [planRisk, setPlanRisk] = React.useState(item.plannedRiskAmount != null ? String(item.plannedRiskAmount) : '')
+  const [planPattern, setPlanPattern] = React.useState(item.plannedPattern)
   const [submitting, setSubmitting] = React.useState(false)
 
   async function handleSave() {
@@ -292,6 +351,11 @@ function EditWatchlistDialog({
         alertDirection: direction,
         notes,
         listName: finalListName || currentList,
+        plannedEntryPrice: planEntry === '' ? null : parseFloat(planEntry),
+        plannedStopLoss: planStop === '' ? null : parseFloat(planStop),
+        plannedTargetPrice: planTarget === '' ? null : parseFloat(planTarget),
+        plannedRiskAmount: planRisk === '' ? null : parseFloat(planRisk),
+        plannedPattern: planPattern,
       })
     } finally {
       setSubmitting(false)
@@ -335,6 +399,43 @@ function EditWatchlistDialog({
           <Label>הערות</Label>
           <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
         </div>
+
+        <div className="border-t border-border pt-3">
+          <div className="mb-2 flex items-center gap-1.5 text-sm font-medium text-text">
+            <Bookmark className="h-3.5 w-3.5 text-accent" />
+            תוכנית מסחר (אופציונלי)
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>מחיר כניסה מתוכנן</Label>
+              <Input type="number" value={planEntry} onChange={(e) => setPlanEntry(e.target.value)} />
+            </div>
+            <div>
+              <Label>סטופ לוס מתוכנן</Label>
+              <Input type="number" value={planStop} onChange={(e) => setPlanStop(e.target.value)} />
+            </div>
+            <div>
+              <Label>יעד מתוכנן</Label>
+              <Input type="number" value={planTarget} onChange={(e) => setPlanTarget(e.target.value)} />
+            </div>
+            <div>
+              <Label>סכום סיכון מתוכנן ($)</Label>
+              <Input type="number" value={planRisk} onChange={(e) => setPlanRisk(e.target.value)} />
+            </div>
+          </div>
+          <div className="mt-3">
+            <Label>סוג הגרף (Pattern)</Label>
+            <Select value={planPattern} onChange={(e) => setPlanPattern(e.target.value)}>
+              <option value="">בחר...</option>
+              {PATTERN_OPTIONS.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </div>
+
         <Button className="w-full" disabled={submitting} onClick={handleSave}>
           {submitting ? 'שומר...' : 'שמור שינויים'}
         </Button>

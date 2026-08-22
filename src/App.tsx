@@ -16,7 +16,7 @@ import { computeEquitySummary, computeEquityCurve } from '@/lib/statistics'
 import { formatCurrency } from '@/lib/calculations'
 import { Sparkline } from '@/components/Sparkline'
 import { getStoredTheme, applyTheme, type Theme } from '@/lib/theme'
-import type { AppSettings, DateRangeFilter } from '@/types'
+import type { AppSettings, DateRangeFilter, WatchlistItem } from '@/types'
 
 type TabValue = 'dashboard' | 'calculator' | 'journal' | 'statistics' | 'patterns' | 'watchlist' | 'notes' | 'settings'
 
@@ -25,6 +25,8 @@ function AppShell() {
   const [settings, setSettings] = React.useState<AppSettings>(() => loadSettings())
   const [filter, setFilter] = React.useState<DateRangeFilter>({ preset: 'month' })
   const [theme, setTheme] = React.useState<Theme>(() => getStoredTheme())
+  // תוכנית מסחר שמורה שנבחרה ברשימת המעקב ("בצע כניסה לעסקה") — ממלאת את המחשבון בטאב הבא שייפתח
+  const [calculatorPrefill, setCalculatorPrefill] = React.useState<WatchlistItem | null>(null)
 
   React.useEffect(() => applyTheme(theme), [theme])
 
@@ -135,7 +137,15 @@ function AppShell() {
           />
         )}
         {tab === 'calculator' && (
-          <CalculatorPage settings={settings} onOpenTrade={openTrade} currentEquity={currentEquity} />
+          <CalculatorPage
+            settings={settings}
+            onOpenTrade={openTrade}
+            onSaveToWatchlist={addToWatchlist}
+            onDeleteWatchlistItem={deleteFromWatchlist}
+            currentEquity={currentEquity}
+            prefill={calculatorPrefill}
+            onPrefillConsumed={() => setCalculatorPrefill(null)}
+          />
         )}
         {tab === 'journal' && (
           <JournalPage
@@ -169,6 +179,10 @@ function AppShell() {
             onAdd={addToWatchlist}
             onUpdate={updateWatchlistItem}
             onDelete={deleteFromWatchlist}
+            onOpenTradeFromPlan={(item) => {
+              setCalculatorPrefill(item)
+              setTab('calculator')
+            }}
           />
         )}
         {tab === 'notes' && <NotesPage notes={notes} onSave={saveNotes} />}

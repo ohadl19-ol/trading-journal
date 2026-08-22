@@ -95,6 +95,13 @@ export interface WatchlistItem {
   alertTriggered: boolean // האם ההתראה כבר הופעלה
   alertTriggeredDate: string | null // מתי ההתראה הופעלה
   listName: string // לאיזו רשימת מעקב הפריט שייך (למשל "הרשימה שלי" / "מעקב שבועי")
+  // תוכנית מסחר שמורה (נשמרה מהמחשבון בלי לבצע כניסה בפועל) — כשקיימת, אפשר לפתוח
+  // אותה שוב במחשבון, לערוך ואז לבצע כניסה אמיתית לעסקה
+  plannedEntryPrice: number | null
+  plannedStopLoss: number | null
+  plannedTargetPrice: number | null
+  plannedRiskAmount: number | null
+  plannedPattern: string
 }
 
 // ==== הגדרות ====
