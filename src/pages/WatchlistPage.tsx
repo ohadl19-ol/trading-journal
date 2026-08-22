@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { useToast } from '@/components/ui/toast'
-import { formatCurrency, percentageColorClass } from '@/lib/calculations'
+import { formatCurrency, formatNumber, percentageColorClass } from '@/lib/calculations'
 import { tradingViewSymbolUrl } from '@/lib/tradingview'
 import { cn } from '@/lib/utils'
 import { DEFAULT_WATCHLIST_NAMES, DEFAULT_WATCHLIST_NAME } from '@/lib/watchlist'
@@ -259,8 +259,8 @@ function WatchlistCard({
         </div>
 
         {hasPlan && (
-          <div className="mt-2 grid grid-cols-2 gap-2 rounded-lg border border-accent/30 bg-accent/5 p-3 text-sm sm:grid-cols-4">
-            <div className="col-span-2 flex items-center gap-1.5 text-xs font-medium text-accent sm:col-span-4">
+          <div className="mt-2 grid grid-cols-2 gap-2 rounded-lg border border-accent/30 bg-accent/5 p-3 text-sm sm:grid-cols-5">
+            <div className="col-span-2 flex items-center gap-1.5 text-xs font-medium text-accent sm:col-span-5">
               <Bookmark className="h-3.5 w-3.5" />
               תוכנית מסחר שמורה{item.plannedPattern && ` · ${item.plannedPattern}`}
             </div>
@@ -273,6 +273,10 @@ function WatchlistCard({
             <PlanField
               label="יעד"
               value={item.plannedTargetPrice !== null ? `$${formatCurrency(item.plannedTargetPrice)}` : '—'}
+            />
+            <PlanField
+              label="כמות מניות"
+              value={item.plannedShares !== null ? formatNumber(item.plannedShares) : '—'}
             />
             <PlanField
               label="סיכון"
@@ -338,6 +342,7 @@ function EditWatchlistDialog({
     item.plannedTargetPrice != null ? String(item.plannedTargetPrice) : '',
   )
   const [planRisk, setPlanRisk] = React.useState(item.plannedRiskAmount != null ? String(item.plannedRiskAmount) : '')
+  const [planShares, setPlanShares] = React.useState(item.plannedShares != null ? String(item.plannedShares) : '')
   const [planPattern, setPlanPattern] = React.useState(item.plannedPattern)
   const [submitting, setSubmitting] = React.useState(false)
 
@@ -355,6 +360,7 @@ function EditWatchlistDialog({
         plannedStopLoss: planStop === '' ? null : parseFloat(planStop),
         plannedTargetPrice: planTarget === '' ? null : parseFloat(planTarget),
         plannedRiskAmount: planRisk === '' ? null : parseFloat(planRisk),
+        plannedShares: planShares === '' ? null : parseInt(planShares, 10),
         plannedPattern: planPattern,
       })
     } finally {
@@ -419,10 +425,17 @@ function EditWatchlistDialog({
               <Input type="number" value={planTarget} onChange={(e) => setPlanTarget(e.target.value)} />
             </div>
             <div>
-              <Label>סכום סיכון מתוכנן ($)</Label>
+              <Label>כמות מניות</Label>
+              <Input type="number" value={planShares} onChange={(e) => setPlanShares(e.target.value)} />
+            </div>
+            <div>
+              <Label>סכום סיכון מתוכנן ($, אופציונלי — לתיעוד בלבד)</Label>
               <Input type="number" value={planRisk} onChange={(e) => setPlanRisk(e.target.value)} />
             </div>
           </div>
+          <p className="mt-1 text-[11px] text-text-muted">
+            אם תמלא "כמות מניות" — היא זו שתיקבע בביצוע העסקה בפועל, לא סכום הסיכון.
+          </p>
           <div className="mt-3">
             <Label>סוג הגרף (Pattern)</Label>
             <Select value={planPattern} onChange={(e) => setPlanPattern(e.target.value)}>

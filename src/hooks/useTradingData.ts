@@ -73,6 +73,7 @@ export interface AddWatchlistInput {
   plannedStopLoss?: number | null
   plannedTargetPrice?: number | null
   plannedRiskAmount?: number | null
+  plannedShares?: number | null
   plannedPattern?: string
 }
 
@@ -86,6 +87,7 @@ export interface UpdateWatchlistInput {
   plannedStopLoss?: number | null
   plannedTargetPrice?: number | null
   plannedRiskAmount?: number | null
+  plannedShares?: number | null
   plannedPattern?: string
 }
 
@@ -495,6 +497,7 @@ export function useTradingData(settings: AppSettings) {
         plannedStopLoss: input.plannedStopLoss ?? null,
         plannedTargetPrice: input.plannedTargetPrice ?? null,
         plannedRiskAmount: input.plannedRiskAmount ?? null,
+        plannedShares: input.plannedShares ?? null,
         plannedPattern: input.plannedPattern ?? '',
       }
 
@@ -538,6 +541,7 @@ export function useTradingData(settings: AppSettings) {
         plannedTargetPrice:
           input.plannedTargetPrice !== undefined ? input.plannedTargetPrice : item.plannedTargetPrice,
         plannedRiskAmount: input.plannedRiskAmount !== undefined ? input.plannedRiskAmount : item.plannedRiskAmount,
+        plannedShares: input.plannedShares !== undefined ? input.plannedShares : item.plannedShares,
         plannedPattern: input.plannedPattern ?? item.plannedPattern,
         // שינוי יעד/כיוון מאפס את מצב ההתראה בצד הלקוח, בדיוק כמו בשרת
         alertTriggered:
@@ -561,6 +565,7 @@ export function useTradingData(settings: AppSettings) {
         plannedStopLoss: input.plannedStopLoss,
         plannedTargetPrice: input.plannedTargetPrice,
         plannedRiskAmount: input.plannedRiskAmount,
+        plannedShares: input.plannedShares,
         plannedPattern: input.plannedPattern,
       })
       await refresh()

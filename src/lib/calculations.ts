@@ -62,6 +62,18 @@ export function rrColorClass(rr: number | null): string {
   return 'text-loss'
 }
 
+/**
+ * גוזר את סכום הסיכון ($) שצריך להזין כדי ש-calculatePosition יחשב בדיוק את כמות המניות
+ * המבוקשת (shares = floor(riskAmount / riskPerShare)). מוסיף באפר זעיר של סנט אחד כדי
+ * להימנע ממקרה גבולי של שגיאת נקודה צפה (floor שמוריד מניה שלמה בטעות), בלי סיכון
+ * לגלוש למניה נוספת (זה ידרוש באפר בגודל riskPerShare שלם, לא סנט בודד).
+ */
+export function riskAmountForExactShares(entryPrice: number, stopLoss: number, shares: number): number | null {
+  const riskPerShare = entryPrice - stopLoss
+  if (riskPerShare <= 0 || shares <= 0) return null
+  return Math.round(shares * riskPerShare * 100) / 100 + 0.01
+}
+
 /** האם המחיר הנוכחי של פוזיציה פתוחה חצה (ירד עד/מתחת ל)- הסטופ לוס שלה */
 export function isStopLossBreached(position: Position): boolean {
   return position.status !== 'סגורה' && position.currentPrice != null && position.currentPrice <= position.stopLoss

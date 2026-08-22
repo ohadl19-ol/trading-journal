@@ -101,6 +101,7 @@ export interface WatchlistItem {
   plannedStopLoss: number | null
   plannedTargetPrice: number | null
   plannedRiskAmount: number | null
+  plannedShares: number | null // כמות מניות מדויקת שהוחלט מראש להיכנס בה (עוקף חישוב לפי סיכון $)
   plannedPattern: string
 }
 

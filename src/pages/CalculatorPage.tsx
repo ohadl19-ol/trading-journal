@@ -7,7 +7,14 @@ import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
-import { calculatePosition, formatCurrency, formatPercentage, percentageColorClass, rrColorClass } from '@/lib/calculations'
+import {
+  calculatePosition,
+  formatCurrency,
+  formatPercentage,
+  percentageColorClass,
+  riskAmountForExactShares,
+  rrColorClass,
+} from '@/lib/calculations'
 import { DEFAULT_WATCHLIST_NAMES } from '@/lib/watchlist'
 import { getIsraelHourMinute } from '@/lib/time'
 import { PATTERN_OPTIONS } from '@/types'
@@ -77,9 +84,20 @@ export function CalculatorPage({
     if (!prefill) return
     setSymbol(prefill.symbol)
     if (prefill.plannedPattern) setPattern(prefill.plannedPattern)
-    if (prefill.plannedRiskAmount != null) setRiskAmount(prefill.plannedRiskAmount.toString())
     if (prefill.plannedEntryPrice != null) setEntryPrice(prefill.plannedEntryPrice.toString())
     if (prefill.plannedStopLoss != null) setStopLoss(prefill.plannedStopLoss.toString())
+    // אם נשמרה כמות מניות מדויקת — היא גוברת על סכום הסיכון (שהוא רק גזור ממנה בשמירה),
+    // כדי שהתוצאה בפועל תהיה בדיוק אותה כמות מניות שהוחלט עליה מראש
+    if (
+      prefill.plannedShares != null &&
+      prefill.plannedEntryPrice != null &&
+      prefill.plannedStopLoss != null
+    ) {
+      const exact = riskAmountForExactShares(prefill.plannedEntryPrice, prefill.plannedStopLoss, prefill.plannedShares)
+      if (exact !== null) setRiskAmount(exact.toFixed(2))
+    } else if (prefill.plannedRiskAmount != null) {
+      setRiskAmount(prefill.plannedRiskAmount.toString())
+    }
     if (prefill.plannedTargetPrice != null) {
       setTargetPrice(prefill.plannedTargetPrice.toString())
       setTargetPriceTouched(true)
@@ -214,6 +232,7 @@ export function CalculatorPage({
         plannedStopLoss: stopLossNum || null,
         plannedTargetPrice: targetPriceNum,
         plannedRiskAmount: riskAmountNum || null,
+        plannedShares: result?.shares || null,
         plannedPattern: pattern,
       })
       toast(`נשמר למעקב — "${watchlistTarget}"`)
