@@ -31,6 +31,7 @@ export function WatchlistPage({ watchlist, onAdd, onUpdate, onDelete, onOpenTrad
   const [targetPrice, setTargetPrice] = React.useState('')
   const [direction, setDirection] = React.useState<AlertDirection>('above')
   const [notes, setNotes] = React.useState('')
+  const [pattern, setPattern] = React.useState('')
   const [submitting, setSubmitting] = React.useState(false)
   const [editItem, setEditItem] = React.useState<WatchlistItem | null>(null)
 
@@ -77,12 +78,14 @@ export function WatchlistPage({ watchlist, onAdd, onUpdate, onDelete, onOpenTrad
         alertDirection: direction,
         notes,
         listName: activeList,
+        plannedPattern: pattern,
       })
       toast(`${symbol.toUpperCase()} נוסף ל"${activeList}"`)
       setSymbol('')
       setTargetPrice('')
       setDirection('above')
       setNotes('')
+      setPattern('')
     } catch (err) {
       toast(err instanceof Error ? err.message : 'שגיאה בהוספה לרשימת המעקב', 'error')
     } finally {
@@ -129,10 +132,21 @@ export function WatchlistPage({ watchlist, onAdd, onUpdate, onDelete, onOpenTrad
           <CardTitle>הוספת מניה למעקב — "{activeList}"</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <div>
               <Label>סימול *</Label>
               <Input value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} placeholder="AAPL" />
+            </div>
+            <div>
+              <Label>סוג הגרף (Pattern)</Label>
+              <Select value={pattern} onChange={(e) => setPattern(e.target.value)}>
+                <option value="">בחר...</option>
+                {PATTERN_OPTIONS.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </Select>
             </div>
             <div>
               <Label>מחיר יעד להתראה</Label>
