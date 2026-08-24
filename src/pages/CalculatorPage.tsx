@@ -7,6 +7,7 @@ import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
+import { PatternSelect } from '@/components/PatternSelect'
 import {
   calculatePosition,
   formatCurrency,
@@ -17,7 +18,6 @@ import {
 } from '@/lib/calculations'
 import { DEFAULT_WATCHLIST_NAMES } from '@/lib/watchlist'
 import { getIsraelHourMinute } from '@/lib/time'
-import { PATTERN_OPTIONS } from '@/types'
 import type { AppSettings, WatchlistItem } from '@/types'
 import type { AddWatchlistInput, OpenTradeInput } from '@/hooks/useTradingData'
 import { useToast } from '@/components/ui/toast'
@@ -282,14 +282,7 @@ export function CalculatorPage({
             </div>
             <div>
               <Label>סוג הגרף (Pattern) *</Label>
-              <Select value={pattern} onChange={(e) => setPattern(e.target.value)}>
-                <option value="">בחר...</option>
-                {PATTERN_OPTIONS.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </Select>
+              <PatternSelect value={pattern} onChange={setPattern} />
             </div>
           </div>
 

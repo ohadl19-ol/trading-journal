@@ -12,7 +12,7 @@ import { formatCurrency, formatNumber, percentageColorClass } from '@/lib/calcul
 import { tradingViewSymbolUrl } from '@/lib/tradingview'
 import { cn } from '@/lib/utils'
 import { DEFAULT_WATCHLIST_NAMES, DEFAULT_WATCHLIST_NAME } from '@/lib/watchlist'
-import { PATTERN_OPTIONS } from '@/types'
+import { PatternSelect } from '@/components/PatternSelect'
 import type { AlertDirection, WatchlistItem } from '@/types'
 import type { AddWatchlistInput, UpdateWatchlistInput } from '@/hooks/useTradingData'
 
@@ -139,14 +139,7 @@ export function WatchlistPage({ watchlist, onAdd, onUpdate, onDelete, onOpenTrad
             </div>
             <div>
               <Label>סוג הגרף (Pattern)</Label>
-              <Select value={pattern} onChange={(e) => setPattern(e.target.value)}>
-                <option value="">בחר...</option>
-                {PATTERN_OPTIONS.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </Select>
+              <PatternSelect value={pattern} onChange={setPattern} />
             </div>
             <div>
               <Label>מחיר יעד להתראה</Label>
@@ -497,14 +490,7 @@ function EditWatchlistDialog({
           </p>
           <div className="mt-3">
             <Label>סוג הגרף (Pattern)</Label>
-            <Select value={planPattern} onChange={(e) => setPlanPattern(e.target.value)}>
-              <option value="">בחר...</option>
-              {PATTERN_OPTIONS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </Select>
+            <PatternSelect value={planPattern} onChange={setPlanPattern} />
           </div>
         </div>
 

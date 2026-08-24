@@ -14,7 +14,9 @@ export const PATTERN_OPTIONS = [
   'Gapper – פער פתיחה משמעותי',
   'Wyckoff – LPS/BUEC',
   'Wyckoff – SOS/JAC Breakout',
+  'Inside Candle – אינסייד קנדל',
   'ללא תבנית ברורה',
+  'אחר',
 ] as const
 export type PatternType = (typeof PATTERN_OPTIONS)[number]
 
