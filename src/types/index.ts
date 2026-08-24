@@ -1,15 +1,20 @@
 // ==== רשימות ערכים קבועות ====
 
 export const PATTERN_OPTIONS = [
-  'Breakout',
-  'Breakout + Retest',
-  'Bull Flag',
-  'Cup with Handle',
-  'VCP',
-  'LPS',
-  'Inside Candle',
-  'FOMO / No Setup',
-  'אחר',
+  'VCP – התכווצות תנודתיות',
+  'Cup with Handle – ספל עם ידית',
+  'Cup without Handle – ספל ללא ידית',
+  'Double Bottom – תחתית כפולה',
+  'Flat Base – בסיס שטוח',
+  'Saucer with Handle – צלחת עם ידית',
+  'Base on Base – בסיס על בסיס',
+  'Ascending Base – בסיס עולה',
+  'High Tight Flag – דגל גבוה והדוק',
+  'Launch Pad – משטח שיגור',
+  'Gapper – פער פתיחה משמעותי',
+  'Wyckoff – LPS/BUEC',
+  'Wyckoff – SOS/JAC Breakout',
+  'ללא תבנית ברורה',
 ] as const
 export type PatternType = (typeof PATTERN_OPTIONS)[number]
 
