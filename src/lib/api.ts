@@ -5,11 +5,22 @@ export interface GeneralNotes {
   tradingRules: string
 }
 
+/** הגדרות ששמורות בצד השרת (PropertiesService) ומסונכרנות בין כל המכשירים. שדה = null
+ * אומר שהוא מעולם לא הוגדר בשרת (למשל גיליון חדש) — במקרה כזה הצד-לקוח לא דורס את הערך
+ * המקומי שלו איתו, אלא דוחף את הערך המקומי הנוכחי לשרת כדי שהוא יהפוך למקור האמת מעכשיו. */
+export interface RemoteSettings {
+  initialCapital: number | null
+  defaultAccountBalance: number | null
+  defaultRiskAmount: number | null
+  commissionPerAction: number | null
+}
+
 export interface GetDataResponse {
   trades: Position[]
   executions: Execution[]
   watchlist: WatchlistItem[]
   notes: GeneralNotes
+  settings: RemoteSettings
 }
 
 export type ActionPayload =
@@ -23,6 +34,7 @@ export type ActionPayload =
   | { action: 'watchlistUpdate'; [key: string]: unknown }
   | { action: 'watchlistDelete'; [key: string]: unknown }
   | { action: 'saveNotes'; [key: string]: unknown }
+  | { action: 'updateSettings'; [key: string]: unknown }
   | { action: 'fetchChartImages'; charts: { tradeId: string; symbol: string; chartUrl: string }[] }
 
 export interface ChartImageResult {
@@ -92,6 +104,12 @@ export async function fetchData(webAppUrl: string): Promise<GetDataResponse> {
     executions: data.executions ?? [],
     watchlist: data.watchlist ?? [],
     notes: data.notes ?? { generalNotes: '', tradingRules: '' },
+    settings: data.settings ?? {
+      initialCapital: null,
+      defaultAccountBalance: null,
+      defaultRiskAmount: null,
+      commissionPerAction: null,
+    },
   }
 }
 

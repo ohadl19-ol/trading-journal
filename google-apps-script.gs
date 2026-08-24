@@ -64,6 +64,7 @@ function doGet(e) {
       executions: readExecutions_(),
       watchlist: readWatchlist_(),
       notes: readGeneralNotes_(),
+      settings: getAppSettings_(),
     };
   }
 
@@ -244,6 +245,9 @@ function doPost(e) {
         break;
       case 'saveNotes':
         result = handleSaveNotes_(body);
+        break;
+      case 'updateSettings':
+        result = handleUpdateSettings_(body);
         break;
       case 'fetchChartImages':
         result = handleFetchChartImages_(body);
@@ -845,6 +849,41 @@ function getInitialCapital_() {
   var props = PropertiesService.getScriptProperties();
   var val = props.getProperty('initialCapital');
   return val ? Number(val) : DEFAULT_INITIAL_CAPITAL;
+}
+
+/**
+ * הגדרות אפליקציה ששמורות בצד השרת (PropertiesService — משותף לכל מכשיר/דפדפן שמחובר
+ * לאותו גיליון), כדי שערכים כמו "הון התחלתי" ייקבעו פעם אחת ולא בנפרד בכל מכשיר.
+ * שדה שמוחזר כ-null פירושו שהוא מעולם לא הוגדר בשרת (למשל גיליון חדש) — הצד-לקוח
+ * יודע להתייחס לזה כ"עדיין לא מסונכרן" במקום לדרוס את הערך המקומי בברירת מחדל.
+ */
+function getAppSettings_() {
+  var props = PropertiesService.getScriptProperties();
+  function readNum(key) {
+    var val = props.getProperty(key);
+    return val === null ? null : Number(val);
+  }
+  return {
+    initialCapital: readNum('initialCapital'),
+    defaultAccountBalance: readNum('defaultAccountBalance'),
+    defaultRiskAmount: readNum('defaultRiskAmount'),
+    commissionPerAction: readNum('commissionPerAction'),
+  };
+}
+
+function handleUpdateSettings_(body) {
+  var props = PropertiesService.getScriptProperties();
+  var keys = ['initialCapital', 'defaultAccountBalance', 'defaultRiskAmount', 'commissionPerAction'];
+  keys.forEach(function (key) {
+    if (body[key] !== undefined && body[key] !== null) {
+      props.setProperty(key, String(body[key]));
+    }
+  });
+  // "הון התחלתי" משפיע על כל עמודת השווי המצטבר (equity) בגיליון הפוזיציות
+  if (body.initialCapital !== undefined && body.initialCapital !== null) {
+    recalcEquity_();
+  }
+  return getAppSettings_();
 }
 
 // ==================== קריאת נתונים ל-doGet ====================

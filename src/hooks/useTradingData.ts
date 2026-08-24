@@ -1,6 +1,6 @@
 import * as React from 'react'
 import type { AlertDirection, AppSettings, Execution, OutcomeType, PatternType, Position, WatchlistItem } from '@/types'
-import { fetchData, postAction, type GeneralNotes } from '@/lib/api'
+import { fetchData, postAction, postActionWithResult, type GeneralNotes, type RemoteSettings } from '@/lib/api'
 import {
   loadLocalExecutions,
   loadLocalNotes,
@@ -118,6 +118,8 @@ export function useTradingData(settings: AppSettings) {
   const [notes, setNotes] = React.useState<GeneralNotes>(() => loadLocalNotes())
   const [loading, setLoading] = React.useState(false)
   const [syncError, setSyncError] = React.useState<string | null>(null)
+  // הגדרות ששמורות בצד השרת (משותפות לכל מכשיר) — null עד שהתקבלה תשובה מהשרת ולו פעם אחת
+  const [remoteSettings, setRemoteSettings] = React.useState<RemoteSettings | null>(null)
 
   const persistLocal = React.useCallback((pos: Position[], exec: Execution[]) => {
     saveLocalPositions(pos)
@@ -138,6 +140,7 @@ export function useTradingData(settings: AppSettings) {
       persistLocal(recalced, data.executions)
       saveLocalWatchlist(data.watchlist)
       saveLocalNotes(data.notes)
+      setRemoteSettings(data.settings ?? null)
     } catch (err) {
       setSyncError(err instanceof Error ? err.message : 'שגיאה לא ידועה בסנכרון')
     } finally {
@@ -607,6 +610,20 @@ export function useTradingData(settings: AppSettings) {
     [settings.webAppUrl],
   )
 
+  // דוחף הגדרות (הון התחלתי וכד') לצד השרת, כדי שהן יסתנכרנו לכל מכשיר אחר שמחובר לאותו
+  // גיליון — במקום להישאר תקועות ב-localStorage המקומי של המכשיר הזה בלבד
+  const updateRemoteSettings = React.useCallback(
+    async (partial: Partial<RemoteSettings>) => {
+      const result = await postActionWithResult<RemoteSettings>(settings.webAppUrl, {
+        action: 'updateSettings',
+        ...partial,
+      })
+      setRemoteSettings(result)
+      return result
+    },
+    [settings.webAppUrl],
+  )
+
   return {
     positions,
     executions,
@@ -614,6 +631,8 @@ export function useTradingData(settings: AppSettings) {
     notes,
     loading,
     syncError,
+    remoteSettings,
+    updateRemoteSettings,
     refresh,
     openTrade,
     addShares,

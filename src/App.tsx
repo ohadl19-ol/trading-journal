@@ -37,6 +37,8 @@ function AppShell() {
     notes,
     loading,
     syncError,
+    remoteSettings,
+    updateRemoteSettings,
     refresh,
     openTrade,
     addShares,
@@ -51,6 +53,41 @@ function AppShell() {
     saveNotes,
   } = useTradingData(settings)
 
+  // "הון התחלתי" וההגדרות הדומות לו מסונכרנות מול השרת כדי שיוגדרו פעם אחת ויחולו על כל
+  // מכשיר: אם השרת כבר מכיר ערך לשדה מסוים — הוא גובר על המקומי; אם השרת עוד לא מכיר
+  // אף ערך (גיליון חדש שמעולם לא סונכרן) — דוחפים את הערכים המקומיים הנוכחיים אליו פעם
+  // אחת, כדי שהם יהפכו למקור האמת מכאן והלאה, בלי לדרוס בטעות ערך אמיתי בברירת מחדל.
+  React.useEffect(() => {
+    if (!remoteSettings) return
+    const hasAnyServerValue =
+      remoteSettings.initialCapital != null ||
+      remoteSettings.defaultAccountBalance != null ||
+      remoteSettings.defaultRiskAmount != null ||
+      remoteSettings.commissionPerAction != null
+
+    if (hasAnyServerValue) {
+      setSettings((prev) => {
+        const merged: AppSettings = {
+          ...prev,
+          initialCapital: remoteSettings.initialCapital ?? prev.initialCapital,
+          defaultAccountBalance: remoteSettings.defaultAccountBalance ?? prev.defaultAccountBalance,
+          defaultRiskAmount: remoteSettings.defaultRiskAmount ?? prev.defaultRiskAmount,
+          commissionPerAction: remoteSettings.commissionPerAction ?? prev.commissionPerAction,
+        }
+        saveSettings(merged)
+        return merged
+      })
+    } else {
+      updateRemoteSettings({
+        initialCapital: settings.initialCapital,
+        defaultAccountBalance: settings.defaultAccountBalance,
+        defaultRiskAmount: settings.defaultRiskAmount,
+        commissionPerAction: settings.commissionPerAction,
+      }).catch(() => {})
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remoteSettings])
+
   const currentEquity = React.useMemo(
     () => computeEquitySummary(positions, settings.initialCapital).currentEquity,
     [positions, settings.initialCapital],
@@ -64,6 +101,14 @@ function AppShell() {
   function handleSaveSettings(next: AppSettings) {
     setSettings(next)
     saveSettings(next)
+    if (next.webAppUrl) {
+      updateRemoteSettings({
+        initialCapital: next.initialCapital,
+        defaultAccountBalance: next.defaultAccountBalance,
+        defaultRiskAmount: next.defaultRiskAmount,
+        commissionPerAction: next.commissionPerAction,
+      }).catch(() => {})
+    }
   }
 
   return (

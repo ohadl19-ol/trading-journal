@@ -114,6 +114,10 @@ export function SettingsPage({ settings, onSave, positions, executions, theme, o
           <CardTitle>ערכי ברירת מחדל</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          <p className="rounded-lg bg-accent/10 px-3 py-2 text-xs text-accent">
+            הערכים בכרטיס הזה נשמרים גם בצד השרת (הגיליון) — מגדירים אותם פעם אחת כאן, וזה
+            יחול אוטומטית בכל מכשיר/דפדפן אחר שמחובר לאותו גיליון, בלי להזין שוב בכל מקום.
+          </p>
           <div>
             <Label>הון התחלתי ($)</Label>
             <Input
