@@ -54,25 +54,31 @@ function doGet(e) {
   var scope = params.scope;
   var payload;
 
-  if (scope === 'summary') {
-    // תקציר קומפקטי (לשימוש כלים חיצוניים כמו Custom GPT Actions, שיש להם מגבלת גודל תשובה)
-    payload = buildSummaryView_();
-  } else if (scope === 'trades') {
-    payload = buildTradesView_(params);
-  } else if (scope === 'trade') {
-    payload = buildTradeDetailView_(params.tradeId);
-  } else if (scope === 'capitalFlows') {
-    payload = { capitalFlows: readCapitalFlows_() };
-  } else {
-    // ברירת מחדל: כל הנתונים המלאים — משמש את האפליקציה עצמה, לא לשנות!
-    payload = {
-      trades: readPositions_(),
-      executions: readExecutions_(),
-      watchlist: readWatchlist_(),
-      notes: readGeneralNotes_(),
-      settings: getAppSettings_(),
-      capitalFlows: readCapitalFlows_(),
-    };
+  try {
+    if (scope === 'summary') {
+      // תקציר קומפקטי (לשימוש כלים חיצוניים כמו Custom GPT Actions, שיש להם מגבלת גודל תשובה)
+      payload = buildSummaryView_();
+    } else if (scope === 'trades') {
+      payload = buildTradesView_(params);
+    } else if (scope === 'trade') {
+      payload = buildTradeDetailView_(params.tradeId);
+    } else if (scope === 'capitalFlows') {
+      payload = { capitalFlows: readCapitalFlows_() };
+    } else if (scope === 'chart') {
+      payload = fetchChartData_(params.symbol, params.interval);
+    } else {
+      // ברירת מחדל: כל הנתונים המלאים — משמש את האפליקציה עצמה, לא לשנות!
+      payload = {
+        trades: readPositions_(),
+        executions: readExecutions_(),
+        watchlist: readWatchlist_(),
+        notes: readGeneralNotes_(),
+        settings: getAppSettings_(),
+        capitalFlows: readCapitalFlows_(),
+      };
+    }
+  } catch (err) {
+    payload = { status: 'error', message: err.message };
   }
 
   if (params.callback) {
@@ -287,6 +293,9 @@ function doPost(e) {
         break;
       case 'fetchChartImages':
         result = handleFetchChartImages_(body);
+        break;
+      case 'setApiKey':
+        result = handleSetApiKey_(body);
         break;
       default:
         throw new Error('פעולה לא ידועה: ' + body.action);
@@ -1062,6 +1071,114 @@ function handleDeleteCapitalFlow_(body) {
     }
   }
   throw new Error('רשומת תזרים הון לא נמצאה: ' + body.flowId);
+}
+
+// ==================== נתוני שוק (Twelve Data) ====================
+// המפתח נשמר ב-Script Properties, בדיוק כמו שאר ההגדרות — אבל בכוונה *לא* נחשף חזרה
+// דרך getAppSettings_/doGet, ובכוונה *לא* עובר דרך logAudit_ (ראה doPost: 'setApiKey'
+// לא ברשימת WRITE_ACTIONS_), כדי שמפתח ה-API לא ייחשף בשום תשובת JSON או ביומן השינויים.
+
+var TWELVE_DATA_BASE_URL = 'https://api.twelvedata.com';
+
+function getMarketDataApiKey_() {
+  return PropertiesService.getScriptProperties().getProperty('twelveDataApiKey');
+}
+
+function handleSetApiKey_(body) {
+  if (!body.apiKey) throw new Error('apiKey חסר');
+  PropertiesService.getScriptProperties().setProperty('twelveDataApiKey', body.apiKey);
+  return { ok: true };
+}
+
+/**
+ * מביאה נרות היסטוריים מ-Twelve Data ומחשבת מהם ממוצעים נעים/ATR/נפח יחסי/שיא-שפל
+ * שנתי בעצמנו (ה-tier החינמי של Twelve Data לא כולל אינדיקטורים מחושבים). interval
+ * ברירת מחדל '1day'; '1week' נתמך גם כן. מחזירה עד 260 נרות — מספיק בדיוק ל-SMA200.
+ */
+function fetchChartData_(symbol, interval) {
+  if (!symbol) throw new Error('symbol חסר');
+  var apiKey = getMarketDataApiKey_();
+  if (!apiKey) throw new Error('לא הוגדר מפתח API לנתוני שוק — יש להגדיר אותו קודם (action: setApiKey)');
+  interval = interval || '1day';
+
+  var url = TWELVE_DATA_BASE_URL + '/time_series?symbol=' + encodeURIComponent(symbol) +
+    '&interval=' + encodeURIComponent(interval) + '&outputsize=260&apikey=' + encodeURIComponent(apiKey);
+  var resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+  var data = JSON.parse(resp.getContentText());
+  if (data.status === 'error') {
+    throw new Error('שגיאה מספק נתוני השוק: ' + (data.message || 'unknown error'));
+  }
+  var rawValues = data.values || [];
+  if (rawValues.length === 0) {
+    throw new Error('לא נמצאו נתונים עבור ' + symbol);
+  }
+
+  // Twelve Data מחזיר מהחדש לישן — הופכים לכרונולוגי (ישן -> חדש) לצורך חישוב האינדיקטורים
+  var candles = rawValues.slice().reverse().map(function (v) {
+    return {
+      time: v.datetime,
+      open: Number(v.open),
+      high: Number(v.high),
+      low: Number(v.low),
+      close: Number(v.close),
+      volume: Number(v.volume),
+    };
+  });
+
+  var closes = candles.map(function (c) { return c.close; });
+  var volumes = candles.map(function (c) { return c.volume; });
+
+  function avg(arr) {
+    return arr.reduce(function (a, b) { return a + b; }, 0) / arr.length;
+  }
+
+  function sma(period) {
+    if (closes.length < period) return null;
+    return avg(closes.slice(closes.length - period));
+  }
+
+  function avgVolume(period) {
+    if (volumes.length < period) return null;
+    return avg(volumes.slice(volumes.length - period));
+  }
+
+  // ATR(period) לפי נוסחת True Range הבסיסית (ממוצע פשוט, לא Wilder smoothing)
+  function atr(period) {
+    if (candles.length < period + 1) return null;
+    var trueRanges = [];
+    for (var i = 1; i < candles.length; i++) {
+      var cur = candles[i], prev = candles[i - 1];
+      trueRanges.push(Math.max(
+        cur.high - cur.low,
+        Math.abs(cur.high - prev.close),
+        Math.abs(cur.low - prev.close)
+      ));
+    }
+    return avg(trueRanges.slice(trueRanges.length - period));
+  }
+
+  var last52w = candles.slice(Math.max(0, candles.length - 252));
+  var high52Week = last52w.length ? Math.max.apply(null, last52w.map(function (c) { return c.high; })) : null;
+  var low52Week = last52w.length ? Math.min.apply(null, last52w.map(function (c) { return c.low; })) : null;
+  var lastVolume = volumes.length ? volumes[volumes.length - 1] : null;
+  var avgVolume20 = avgVolume(20);
+
+  return {
+    symbol: symbol,
+    interval: interval,
+    currentPrice: closes.length ? closes[closes.length - 1] : null,
+    sma20: sma(20),
+    sma50: sma(50),
+    sma150: sma(150),
+    sma200: sma(200),
+    atr14: atr(14),
+    avgVolume20: avgVolume20,
+    avgVolume50: avgVolume(50),
+    relativeVolume: (lastVolume !== null && avgVolume20) ? lastVolume / avgVolume20 : null,
+    high52Week: high52Week,
+    low52Week: low52Week,
+    candles: candles,
+  };
 }
 
 // ==================== קריאת נתונים ל-doGet ====================
