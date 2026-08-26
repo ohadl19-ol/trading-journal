@@ -10,6 +10,8 @@ var EXECUTIONS_SHEET_NAME = 'פעולות';
 var STATS_SHEET_NAME = 'סטטיסטיקה';
 var WATCHLIST_SHEET_NAME = 'רשימת מעקב';
 var NOTES_SHEET_NAME = 'הערות ותוכנית מסחר';
+var AUDIT_LOG_SHEET_NAME = 'יומן שינויים';
+var CAPITAL_FLOW_SHEET_NAME = 'תזרים הון';
 
 // כותרות לשונית "רשימת מעקב"
 var WATCHLIST_HEADERS = [
@@ -31,6 +33,7 @@ var POSITIONS_HEADERS = [
   'רווח/הפסד ממומש $', 'R ממומש', 'תוצאה (Outcome)', 'WIN/LOSS',
   'קטגוריה/תגית', 'תאריך סגירה', 'סיבת כניסה/סטאפ', 'קישור צ\'ארט הפוזיציה',
   'הערות', 'שווי מצטבר (equity)', 'מחיר נוכחי (לא ממומש)', 'עמלות שנצברו $', 'מועדף', 'יעד 4R',
+  'סקירת עסקה (לקחים/טעויות/הפרות כלל)', 'התראת סטופ נשלחה',
 ];
 
 // כותרות לשונית "פעולות"
@@ -45,6 +48,7 @@ var DEFAULT_INITIAL_CAPITAL = 4455;
 
 function doGet(e) {
   checkWatchlistAlerts_(); // בדיקה הזדמנותית בכל טעינה - שולחת מייל אם מניה חצתה יעד
+  checkStopLossAlerts_(); // בדיקה הזדמנותית בכל טעינה - שולחת מייל אם פוזיציה פתוחה חצתה סטופ
 
   var params = (e && e.parameter) || {};
   var scope = params.scope;
@@ -65,6 +69,7 @@ function doGet(e) {
       watchlist: readWatchlist_(),
       notes: readGeneralNotes_(),
       settings: getAppSettings_(),
+      capitalFlows: readCapitalFlows_(),
     };
   }
 
@@ -211,10 +216,33 @@ function resolveChartImageUrl_(chartUrl) {
   }
 }
 
+// פעולות "כתיבה" בלבד מקבלות idempotency (לא נוגע לקריאה, ואין לה משמעות שם) ומתועדות ביומן שינויים
+var WRITE_ACTIONS_ = {
+  open: true, add: true, trim: true, close: true, update: true, delete: true,
+  watchlistAdd: true, watchlistUpdate: true, watchlistDelete: true,
+  saveNotes: true, updateSettings: true,
+  addCapitalFlow: true, deleteCapitalFlow: true,
+};
+
 function doPost(e) {
   var result;
   try {
     var body = JSON.parse(e.postData.contents);
+    var isWrite = !!WRITE_ACTIONS_[body.action];
+
+    // idempotency: אם כבר ביצענו בקשה עם אותו idempotencyKey (למשל retry כפול בטעות),
+    // מחזירים את אותה תוצאה בלי לבצע את הפעולה פעם נוספת
+    var cache = isWrite && body.idempotencyKey ? CacheService.getScriptCache() : null;
+    var cacheKey = cache ? 'idem_' + body.action + '_' + body.idempotencyKey : null;
+    if (cacheKey) {
+      var cached = cache.get(cacheKey);
+      if (cached !== null) {
+        return ContentService
+          .createTextOutput(JSON.stringify({ status: 'ok', result: JSON.parse(cached), deduped: true }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+
     switch (body.action) {
       case 'open':
         result = handleOpen_(body);
@@ -249,6 +277,12 @@ function doPost(e) {
       case 'updateSettings':
         result = handleUpdateSettings_(body);
         break;
+      case 'addCapitalFlow':
+        result = handleAddCapitalFlow_(body);
+        break;
+      case 'deleteCapitalFlow':
+        result = handleDeleteCapitalFlow_(body);
+        break;
       case 'fetchChartImages':
         result = handleFetchChartImages_(body);
         break;
@@ -256,6 +290,15 @@ function doPost(e) {
         throw new Error('פעולה לא ידועה: ' + body.action);
     }
     ensureStatsSheet_();
+
+    if (cacheKey) {
+      // עד 6 שעות (המקסימום של CacheService) — מספיק בהחלט כדי לתפוס retry כפול
+      cache.put(cacheKey, JSON.stringify(result), 21600);
+    }
+    if (isWrite) {
+      logAudit_(body.action, body, result);
+    }
+
     return ContentService
       .createTextOutput(JSON.stringify({ status: 'ok', result: result }))
       .setMimeType(ContentService.MimeType.JSON);
@@ -481,6 +524,8 @@ function handleUpdate_(body) {
   }
   if (body.stopLoss !== undefined && body.stopLoss !== null) {
     updateCell_(sheet, rowIndex, 'מחיר סטופ לוס', body.stopLoss);
+    // סטופ הוזז (למשל טריילינג סטופ) — מאפסים את דגל ההתראה כדי שתישלח שוב אם המחיר יחצה את הסטופ החדש
+    updateCell_(sheet, rowIndex, 'התראת סטופ נשלחה', false);
   }
   if (body.accruedCommission !== undefined && body.accruedCommission !== null) {
     // תיקון/מיגרציה חד-פעמית לעמלות שנצברו — משמש בעיקר לפוזיציות שנפתחו לפני שהתחלנו לעקוב אחרי עמלות
@@ -488,6 +533,9 @@ function handleUpdate_(body) {
   }
   if (body.isFavorite !== undefined && body.isFavorite !== null) {
     updateCell_(sheet, rowIndex, 'מועדף', body.isFavorite);
+  }
+  if (body.tradeReview !== undefined && body.tradeReview !== null) {
+    updateCell_(sheet, rowIndex, 'סקירת עסקה (לקחים/טעויות/הפרות כלל)', body.tradeReview);
   }
 
   return { tradeId: body.tradeId };
@@ -715,6 +763,48 @@ function checkWatchlistAlerts_() {
   }
 }
 
+/**
+ * בודקת את כל הפוזיציות הפתוחות ושולחת מייל בפעם הראשונה שהמחיר הנוכחי (החי, מ-
+ * GOOGLEFINANCE) חוצה את הסטופ לוס שלהן. מאותת פעם אחת בלבד עד שהסטופ מוזז (טריילינג)
+ * או שהעסקה נסגרת — בדיוק כמו מנגנון ה-watchlist alerts, כדי לא להציף במיילים חוזרים.
+ */
+function checkStopLossAlerts_() {
+  var sheet = getPositionsSheet_();
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+
+  var data = sheet.getRange(2, 1, lastRow - 1, POSITIONS_HEADERS.length).getValues();
+  var statusCol = POSITIONS_HEADERS.indexOf('סטאטוס');
+  var symbolCol = POSITIONS_HEADERS.indexOf('סימול');
+  var stopCol = POSITIONS_HEADERS.indexOf('מחיר סטופ לוס');
+  var priceCol = POSITIONS_HEADERS.indexOf('מחיר נוכחי (לא ממומש)');
+  var alertCol = POSITIONS_HEADERS.indexOf('התראת סטופ נשלחה');
+
+  for (var i = 0; i < data.length; i++) {
+    var row = data[i];
+    if (row[statusCol] === 'סגורה') continue;
+    if (row[alertCol] === true) continue;
+
+    var stop = row[stopCol];
+    var price = row[priceCol];
+    if (stop === '' || price === '' || price === undefined) continue;
+    if (Number(price) > Number(stop)) continue; // עדיין מעל הסטופ — בסדר
+
+    var rowIndex = i + 2;
+    sheet.getRange(rowIndex, alertCol + 1).setValue(true);
+
+    try {
+      var symbol = row[symbolCol];
+      var subject = '🛑 ' + symbol + ' חצה את הסטופ לוס';
+      var msg = symbol + ' נמצא כרגע במחיר ' + price + '$, מתחת/על הסטופ (' + stop + '$) — שקול לסגור את הפוזיציה.\n\n' +
+        'נבדק אוטומטית ע"י אפליקציית יומן המסחר שלך.';
+      MailApp.sendEmail(Session.getActiveUser().getEmail(), subject, msg);
+    } catch (mailErr) {
+      // כשל בשליחת מייל לא אמור לעצור את שאר הבדיקות
+    }
+  }
+}
+
 // ==================== הערות כלליות + כללי מסחר ====================
 
 /**
@@ -886,6 +976,92 @@ function handleUpdateSettings_(body) {
   return getAppSettings_();
 }
 
+// ==================== יומן שינויים (Audit Log) ====================
+
+var AUDIT_LOG_HEADERS = ['תאריך', 'מקור', 'פעולה', 'ישות', 'בקשה (JSON)', 'תוצאה (JSON)'];
+
+function getAuditLogSheet_() {
+  return ensureSheetWithHeaders_(AUDIT_LOG_SHEET_NAME, AUDIT_LOG_HEADERS);
+}
+
+/**
+ * רושמת שורה ביומן השינויים לכל פעולת כתיבה: מתי, ממי (source — 'chatgpt'/'app'/וכו',
+ * ברירת מחדל 'app'), איזו פעולה, על איזו ישות (tradeId/watchId אם יש), והבקשה+התוצאה
+ * המלאות כ-JSON. כשל ברישום עצמו לא אמור אף פעם להפיל את הפעולה המקורית — משום כך יש
+ * try/catch שקט כאן ולא בקורא.
+ */
+function logAudit_(action, body, result) {
+  try {
+    var sheet = getAuditLogSheet_();
+    var entity = body.tradeId || body.watchId || body.flowId || '';
+    var bodyForLog = {};
+    for (var key in body) {
+      if (key !== 'idempotencyKey') bodyForLog[key] = body[key];
+    }
+    sheet.appendRow([
+      new Date().toISOString(),
+      body.source || 'app',
+      action,
+      entity,
+      JSON.stringify(bodyForLog),
+      JSON.stringify(result),
+    ]);
+  } catch (err) {
+    // לא זורקים החוצה — רישום כושל לא אמור לחסום את הפעולה עצמה
+  }
+}
+
+// ==================== תזרים הון (הפקדות/משיכות) ====================
+
+var CAPITAL_FLOW_HEADERS = ['מזהה', 'תאריך', 'סוג', 'סכום', 'הערות'];
+
+function getCapitalFlowSheet_() {
+  return ensureSheetWithHeaders_(CAPITAL_FLOW_SHEET_NAME, CAPITAL_FLOW_HEADERS);
+}
+
+function readCapitalFlows_() {
+  var sheet = getCapitalFlowSheet_();
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  var data = sheet.getRange(2, 1, lastRow - 1, CAPITAL_FLOW_HEADERS.length).getValues();
+  return data.map(function (row) {
+    return {
+      flowId: row[0],
+      date: toIsoString_(row[1]),
+      type: row[2], // 'deposit' | 'withdrawal'
+      amount: Number(row[3]) || 0,
+      notes: row[4] || '',
+    };
+  });
+}
+
+function handleAddCapitalFlow_(body) {
+  var sheet = getCapitalFlowSheet_();
+  var flowId = body.flowId || ('F-' + new Date().getTime());
+  sheet.appendRow([
+    flowId,
+    body.date || new Date().toISOString(),
+    body.type === 'withdrawal' ? 'withdrawal' : 'deposit',
+    body.amount,
+    body.notes || '',
+  ]);
+  return { flowId: flowId };
+}
+
+function handleDeleteCapitalFlow_(body) {
+  var sheet = getCapitalFlowSheet_();
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) throw new Error('אין רשומות תזרים הון');
+  var ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  for (var i = 0; i < ids.length; i++) {
+    if (ids[i][0] === body.flowId) {
+      sheet.deleteRow(i + 2);
+      return { flowId: body.flowId };
+    }
+  }
+  throw new Error('רשומת תזרים הון לא נמצאה: ' + body.flowId);
+}
+
 // ==================== קריאת נתונים ל-doGet ====================
 
 function readPositions_() {
@@ -927,6 +1103,7 @@ function readPositions_() {
       accruedCommission: Number(row[29]) || 0,
       isFavorite: row[30] === true,
       target4R: row[31] === '' || row[31] === undefined ? null : Number(row[31]),
+      tradeReview: row[32] || '',
     };
   });
 }
