@@ -61,6 +61,8 @@ function doGet(e) {
     payload = buildTradesView_(params);
   } else if (scope === 'trade') {
     payload = buildTradeDetailView_(params.tradeId);
+  } else if (scope === 'capitalFlows') {
+    payload = { capitalFlows: readCapitalFlows_() };
   } else {
     // ברירת מחדל: כל הנתונים המלאים — משמש את האפליקציה עצמה, לא לשנות!
     payload = {
