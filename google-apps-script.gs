@@ -325,9 +325,33 @@ function doPost(e) {
 function handleOpen_(body) {
   var sheet = getPositionsSheet_();
   var now = body.openDate || new Date().toISOString();
+  // מזהה עסקה: הלקוח (האפליקציה) תמיד יוצר ושולח אחד, אבל קריאה חיצונית (כמו GPT) לא
+  // בהכרח יודעת לעשות זאת — אם לא נשלח, מייצרים אחד כאן כדי שהעסקה תמיד תהיה בת-איתור
+  var tradeId = body.tradeId || ('T-' + new Date().getTime());
+
+  // אם לא נשלחו שדות נגזרים (positionSize/אחוזים/R-targets) — למשל קריאה מ-GPT שמעביר
+  // רק את השדות הגולמיים — מחשבים אותם כאן מהמחירים הגולמיים, באותה נוסחה כמו במחשבון
+  var riskPerShare = Number(body.entryPrice) - Number(body.stopLoss);
+  var positionSize = numOrNull_(body.positionSize, Number(body.shares) * Number(body.entryPrice));
+  var accountBalanceNum = body.accountBalance !== undefined && body.accountBalance !== null ? Number(body.accountBalance) : null;
+  var accountPercentage = numOrNull_(
+    body.accountPercentage,
+    accountBalanceNum ? (positionSize / accountBalanceNum) * 100 : null
+  );
+  var riskPercentage = numOrNull_(
+    body.riskPercentage,
+    accountBalanceNum ? (Number(body.riskAmount) / accountBalanceNum) * 100 : null
+  );
+  var plannedRR = numOrNull_(
+    body.plannedRR,
+    body.targetPrice && riskPerShare > 0 ? (Number(body.targetPrice) - Number(body.entryPrice)) / riskPerShare : null
+  );
+  var target2R = numOrNull_(body.target2R, riskPerShare > 0 ? Number(body.entryPrice) + 2 * riskPerShare : null);
+  var target3R = numOrNull_(body.target3R, riskPerShare > 0 ? Number(body.entryPrice) + 3 * riskPerShare : null);
+  var target4R = numOrNull_(body.target4R, riskPerShare > 0 ? Number(body.entryPrice) + 4 * riskPerShare : null);
 
   var row = buildEmptyRow_();
-  setByHeader_(row, 'מזהה עסקה', body.tradeId);
+  setByHeader_(row, 'מזהה עסקה', tradeId);
   setByHeader_(row, 'תאריך פתיחה', now);
   setByHeader_(row, 'סימול', body.symbol);
   setByHeader_(row, 'סטאטוס', 'פתוחה');
@@ -338,13 +362,13 @@ function handleOpen_(body) {
   setByHeader_(row, 'מחיר סטופ לוס', body.stopLoss);
   setByHeader_(row, 'מחיר יעד', body.targetPrice);
   setByHeader_(row, 'סכום סיכון $', body.riskAmount);
-  setByHeader_(row, 'גודל פוזיציה נוכחי $', body.positionSize);
-  setByHeader_(row, '% פוזיציה מהחשבון', body.accountPercentage);
-  setByHeader_(row, '% סיכון מהחשבון', body.riskPercentage);
-  setByHeader_(row, 'יחס R/R מתוכנן', body.plannedRR);
-  setByHeader_(row, 'יעד 2R', body.target2R);
-  setByHeader_(row, 'יעד 3R', body.target3R);
-  setByHeader_(row, 'יעד 4R', body.target4R);
+  setByHeader_(row, 'גודל פוזיציה נוכחי $', positionSize);
+  setByHeader_(row, '% פוזיציה מהחשבון', accountPercentage);
+  setByHeader_(row, '% סיכון מהחשבון', riskPercentage);
+  setByHeader_(row, 'יחס R/R מתוכנן', plannedRR);
+  setByHeader_(row, 'יעד 2R', target2R);
+  setByHeader_(row, 'יעד 3R', target3R);
+  setByHeader_(row, 'יעד 4R', target4R);
   setByHeader_(row, 'יתרת חשבון', body.accountBalance);
   setByHeader_(row, 'רווח/הפסד ממומש $', 0);
   setByHeader_(row, 'סיבת כניסה/סטאפ', body.setupReason);
@@ -358,19 +382,24 @@ function handleOpen_(body) {
 
   addExecutionRow_({
     execId: 'E-' + Utilities.getUuid().slice(0, 8),
-    tradeId: body.tradeId,
+    tradeId: tradeId,
     timestamp: now,
     symbol: body.symbol,
     actionType: 'כניסה',
     price: body.entryPrice,
     shares: body.shares,
-    amount: body.positionSize,
+    amount: positionSize,
     realizedPnlInAction: 0,
     notes: body.setupReason || '',
   });
 
   recalcEquity_();
-  return { tradeId: body.tradeId };
+  return { tradeId: tradeId };
+}
+
+/** מחזיר את value אם הוא לא undefined/null, אחרת את הערך שחושב כברירת מחדל (יכול גם הוא להיות null) */
+function numOrNull_(value, fallback) {
+  return value !== undefined && value !== null ? Number(value) : fallback;
 }
 
 function handleAdd_(body) {
@@ -611,8 +640,10 @@ function findWatchlistRow_(sheet, watchId) {
 
 function handleWatchlistAdd_(body) {
   var sheet = getWatchlistSheet_();
+  // כמו tradeId ב-handleOpen_: הלקוח בד"כ שולח מזהה משלו, אבל אם לא (למשל קריאה מ-GPT) מייצרים אחד
+  var watchId = body.watchId || ('W-' + new Date().getTime());
   var row = [
-    body.watchId,
+    watchId,
     body.symbol,
     body.addedDate || new Date().toISOString(),
     body.targetPrice === undefined || body.targetPrice === null ? '' : body.targetPrice,
@@ -638,7 +669,7 @@ function handleWatchlistAdd_(body) {
   var symbolA1 = sheet.getRange(lastRow, symbolCol).getA1Notation();
   sheet.getRange(lastRow, priceCol).setFormula('=IFERROR(GOOGLEFINANCE(' + symbolA1 + ',"price"),"")');
 
-  return { watchId: body.watchId };
+  return { watchId: watchId };
 }
 
 function handleWatchlistUpdate_(body) {
