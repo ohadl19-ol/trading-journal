@@ -127,14 +127,6 @@ export function SettingsPage({ settings, onSave, positions, executions, theme, o
             />
           </div>
           <div>
-            <Label>יתרת חשבון ברירת מחדל ($)</Label>
-            <Input
-              type="number"
-              value={form.defaultAccountBalance}
-              onChange={(e) => setForm({ ...form, defaultAccountBalance: Number(e.target.value) })}
-            />
-          </div>
-          <div>
             <Label>סכום סיכון ברירת מחדל ($)</Label>
             <Input
               type="number"
