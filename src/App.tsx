@@ -11,6 +11,7 @@ import { PatternsGuidePage } from '@/pages/PatternsGuidePage'
 import { WatchlistPage } from '@/pages/WatchlistPage'
 import { NotesPage } from '@/pages/NotesPage'
 import { Dialog } from '@/components/ui/dialog'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { useTradingData } from '@/hooks/useTradingData'
 import { loadSettings, saveSettings } from '@/lib/storage'
 import { computeEquitySummary, computeEquityCurve } from '@/lib/statistics'
@@ -262,8 +263,10 @@ function AppShell() {
 
 export default function App() {
   return (
-    <ToastProvider>
-      <AppShell />
-    </ToastProvider>
+    <ErrorBoundary>
+      <ToastProvider>
+        <AppShell />
+      </ToastProvider>
+    </ErrorBoundary>
   )
 }

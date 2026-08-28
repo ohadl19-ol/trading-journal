@@ -408,7 +408,7 @@ export function computeStatistics(positions: Position[], initialCapital: number)
   // עסקה תורמת לכל תגית שסומנה עליה בנפרד, כדי לראות אילו טעויות/תנאים חוזרים הכי הרבה
   const tagMap = new Map<string, PatternBreakdown>()
   for (const p of closedTrades) {
-    for (const tag of p.tags) {
+    for (const tag of p.tags ?? []) {
       const entry = tagMap.get(tag) || { name: tag, pnl: 0, count: 0 }
       entry.pnl += p.realizedPnl
       entry.count += 1

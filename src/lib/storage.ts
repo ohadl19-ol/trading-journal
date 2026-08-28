@@ -36,7 +36,18 @@ export function saveSettings(settings: AppSettings) {
 export function loadLocalPositions(): Position[] {
   try {
     const raw = localStorage.getItem(KEYS.positions)
-    return raw ? JSON.parse(raw) : []
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as Position[]
+    // עסקאות שנשמרו בקאש המקומי לפני שהוספנו שדות חדשים (tags/followedPlan/tradeReview)
+    // לא יכילו אותם בכלל בפועל (למרות שה-cast למעלה "מבטיח" ל-TS שכן) — בלי ה-??
+    // כאן, קוד שמניח שהם תמיד קיימים (כמו position.tags.length) יקרוס עם מסך שחור
+    // עוד לפני שהריענון מהשרת מספיק לרוץ
+    return parsed.map((p) => ({
+      ...p,
+      tags: p.tags ?? [],
+      followedPlan: p.followedPlan ?? null,
+      tradeReview: p.tradeReview ?? '',
+    }))
   } catch {
     return []
   }

@@ -280,14 +280,14 @@ export function PositionCard({
           </div>
         )}
 
-        {(position.followedPlan !== null || position.tags.length > 0 || position.tradeReview) && (
+        {(position.followedPlan != null || (position.tags ?? []).length > 0 || position.tradeReview) && (
           <div className="mt-2 space-y-1.5 border-t border-border pt-2">
-            {position.followedPlan !== null && (
+            {position.followedPlan != null && (
               <Badge variant={position.followedPlan ? 'win' : 'loss'}>
                 {position.followedPlan ? '✔ פעלתי לפי התוכנית' : '✘ סטיתי מהתוכנית'}
               </Badge>
             )}
-            {position.tags.length > 0 && (
+            {(position.tags ?? []).length > 0 && (
               <div className="flex flex-wrap gap-1">
                 {position.tags.map((tag) => (
                   <span
