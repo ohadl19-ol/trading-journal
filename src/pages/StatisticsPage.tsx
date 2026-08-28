@@ -7,6 +7,7 @@ import { DateRangeFilterBar } from '@/components/DateRangeFilterBar'
 import { EquityCurveChart } from '@/components/EquityCurveChart'
 import { MonthlyHeatmap } from '@/components/MonthlyHeatmap'
 import { Select } from '@/components/ui/select'
+import { StatTile } from '@/components/ui/labeled-value'
 import {
   computeStatistics,
   computeEquitySummaryForRange,
@@ -115,18 +116,18 @@ export function StatisticsPage({ positions, initialCapital, filter, onFilterChan
       </div>
 
       <StatSection title="הון וביצועים">
-        <StatCard
+        <StatTile
           icon={<TrendingUp className="h-4 w-4" />}
           label="הון התחלתי"
           value={`$${formatCurrency(equity.initialCapital)}`}
         />
-        <StatCard
+        <StatTile
           icon={equity.totalRealizedPnl >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
           label="רווח/הפסד ממומש כולל"
           value={`${equity.totalRealizedPnl >= 0 ? '+' : ''}$${formatCurrency(equity.totalRealizedPnl)}`}
           valueClass={equity.totalRealizedPnl >= 0 ? 'text-win' : 'text-loss'}
         />
-        <StatCard
+        <StatTile
           icon={<Wallet className="h-4 w-4" />}
           label="רווח/הפסד לא ממומש (פתוח)"
           value={
@@ -136,12 +137,12 @@ export function StatisticsPage({ positions, initialCapital, filter, onFilterChan
           }
           valueClass={equity.unrealizedPnl >= 0 ? 'text-win' : 'text-loss'}
         />
-        <StatCard
+        <StatTile
           icon={<Award className="h-4 w-4" />}
           label="שווי נוכחי"
           value={`$${formatCurrency(equity.currentEquity)}`}
         />
-        <StatCard
+        <StatTile
           icon={<Percent className="h-4 w-4" />}
           label="רווח/הפסד באחוזים"
           value={formatPercentage(equity.pnlPercentage * 100)}
@@ -150,19 +151,19 @@ export function StatisticsPage({ positions, initialCapital, filter, onFilterChan
       </StatSection>
 
       <StatSection title="הצלחה והפסד">
-        <StatCard label="עסקאות מנצחות" value={stats.winCount.toString()} valueClass="text-win" />
-        <StatCard label="עסקאות מפסידות" value={stats.lossCount.toString()} valueClass="text-loss" />
-        <StatCard label="אחוז מנצחות" value={formatPercentage(stats.winRate * 100)} />
-        <StatCard label="אחוז מפסידות" value={formatPercentage(stats.lossRate * 100)} />
-        <StatCard label="ממוצע רווח לעסקה מנצחת" value={`$${formatCurrency(stats.avgWin)}`} valueClass="text-win" />
-        <StatCard label="ממוצע הפסד לעסקה מפסידה" value={`$${formatCurrency(stats.avgLoss)}`} valueClass="text-loss" />
-        <StatCard
+        <StatTile label="עסקאות מנצחות" value={stats.winCount.toString()} valueClass="text-win" />
+        <StatTile label="עסקאות מפסידות" value={stats.lossCount.toString()} valueClass="text-loss" />
+        <StatTile label="אחוז מנצחות" value={formatPercentage(stats.winRate * 100)} />
+        <StatTile label="אחוז מפסידות" value={formatPercentage(stats.lossRate * 100)} />
+        <StatTile label="ממוצע רווח לעסקה מנצחת" value={`$${formatCurrency(stats.avgWin)}`} valueClass="text-win" />
+        <StatTile label="ממוצע הפסד לעסקה מפסידה" value={`$${formatCurrency(stats.avgLoss)}`} valueClass="text-loss" />
+        <StatTile
           icon={<Target className="h-4 w-4" />}
           label="תוחלת לעסקה"
           value={`$${formatCurrency(stats.expectancy)}`}
           valueClass={stats.expectancy >= 0 ? 'text-win' : 'text-loss'}
         />
-        <StatCard
+        <StatTile
           icon={<AlertTriangle className="h-4 w-4" />}
           label="עסקאות סגורות"
           value={stats.closedTrades.length.toString()}
@@ -170,13 +171,13 @@ export function StatisticsPage({ positions, initialCapital, filter, onFilterChan
       </StatSection>
 
       <StatSection title="סיכון">
-        <StatCard
+        <StatTile
           icon={<ArrowDownRight className="h-4 w-4" />}
           label="Max Drawdown"
           value={`-$${formatCurrency(drawdown.maxDrawdown)} (${formatPercentage(drawdown.maxDrawdownPercentage * 100)})`}
           valueClass={drawdown.maxDrawdown > 0 ? 'text-loss' : undefined}
         />
-        <StatCard
+        <StatTile
           icon={<Flame className="h-4 w-4" />}
           label="רצף נוכחי"
           value={
@@ -186,20 +187,20 @@ export function StatisticsPage({ positions, initialCapital, filter, onFilterChan
           }
           valueClass={streaks.currentStreak > 0 ? 'text-win' : streaks.currentStreak < 0 ? 'text-loss' : undefined}
         />
-        <StatCard
+        <StatTile
           label="רצפים ארוכים ביותר"
           value={`${streaks.longestWinStreak} WIN / ${streaks.longestLossStreak} LOSS`}
         />
       </StatSection>
 
       <StatSection title="התנהגות ותזמון">
-        <StatCard
+        <StatTile
           icon={<Clock className="h-4 w-4" />}
           label="זמן החזקה ממוצע — מנצחות"
           value={formatHoldingTime(holdingTime.avgHoldHoursWin)}
           valueClass="text-win"
         />
-        <StatCard
+        <StatTile
           icon={<Clock className="h-4 w-4" />}
           label="זמן החזקה ממוצע — מפסידות"
           value={formatHoldingTime(holdingTime.avgHoldHoursLoss)}
@@ -360,30 +361,6 @@ function StatSection({ title, children }: { title: string; children: React.React
       <h2 className="text-sm font-semibold text-text-muted">{title}</h2>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">{children}</div>
     </div>
-  )
-}
-
-function StatCard({
-  icon,
-  label,
-  value,
-  valueClass,
-}: {
-  icon?: React.ReactNode
-  label: string
-  value: string
-  valueClass?: string
-}) {
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="flex items-center gap-1.5 text-xs text-text-muted">
-          {icon}
-          {label}
-        </div>
-        <div className={cn('mt-1 text-xl font-bold num-tabular', valueClass)}>{value}</div>
-      </CardContent>
-    </Card>
   )
 }
 

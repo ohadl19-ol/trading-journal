@@ -13,6 +13,7 @@ import { tradingViewSymbolUrl } from '@/lib/tradingview'
 import { cn } from '@/lib/utils'
 import { DEFAULT_WATCHLIST_NAMES, DEFAULT_WATCHLIST_NAME } from '@/lib/watchlist'
 import { PatternSelect } from '@/components/PatternSelect'
+import { InlineField } from '@/components/ui/labeled-value'
 import type { AlertDirection, WatchlistItem } from '@/types'
 import type { AddWatchlistInput, UpdateWatchlistInput } from '@/hooks/useTradingData'
 
@@ -316,21 +317,21 @@ function WatchlistCard({
               <Bookmark className="h-3.5 w-3.5" />
               תוכנית מסחר שמורה{item.plannedPattern && ` · ${item.plannedPattern}`}
             </div>
-            <PlanField label="כניסה" value={`$${formatCurrency(item.plannedEntryPrice)}`} />
-            <PlanField
+            <InlineField label="כניסה" value={`$${formatCurrency(item.plannedEntryPrice)}`} />
+            <InlineField
               label="סטופ"
               value={`$${formatCurrency(item.plannedStopLoss)}${planStopPct !== null ? ` (-${planStopPct.toFixed(1)}%)` : ''}`}
               className={percentageColorClass(planStopPct)}
             />
-            <PlanField
+            <InlineField
               label="יעד"
               value={item.plannedTargetPrice !== null ? `$${formatCurrency(item.plannedTargetPrice)}` : '—'}
             />
-            <PlanField
+            <InlineField
               label="כמות מניות"
               value={item.plannedShares !== null ? formatNumber(item.plannedShares) : '—'}
             />
-            <PlanField
+            <InlineField
               label="סיכון"
               value={item.plannedRiskAmount !== null ? `$${formatCurrency(item.plannedRiskAmount)}` : '—'}
             />
@@ -359,15 +360,6 @@ function WatchlistCard({
         </div>
       </CardContent>
     </Card>
-  )
-}
-
-function PlanField({ label, value, className }: { label: string; value: string; className?: string }) {
-  return (
-    <div>
-      <div className="text-[11px] text-text-muted">{label}</div>
-      <div className={cn('font-medium num-tabular', className)}>{value}</div>
-    </div>
   )
 }
 

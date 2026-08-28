@@ -11,6 +11,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { StatCardSkeleton } from '@/components/ui/skeleton'
+import { StatTile } from '@/components/ui/labeled-value'
 import { EquityCurveChart } from '@/components/EquityCurveChart'
 import { computeEquitySummary, computeEquityCurve, computeStreaks, computeStatistics } from '@/lib/statistics'
 import { formatCurrency, formatPercentage, isStopLossBreached } from '@/lib/calculations'
@@ -196,26 +197,3 @@ export function DashboardPage({ positions, initialCapital, loading, onNavigate }
   )
 }
 
-function StatTile({
-  icon,
-  label,
-  value,
-  valueClass,
-}: {
-  icon?: React.ReactNode
-  label: string
-  value: string
-  valueClass?: string
-}) {
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="flex items-center gap-1.5 text-xs text-text-muted">
-          {icon}
-          {label}
-        </div>
-        <div className={cn('mt-1 text-xl font-bold num-tabular', valueClass)}>{value}</div>
-      </CardContent>
-    </Card>
-  )
-}

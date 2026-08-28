@@ -4,6 +4,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuItem } from '@/components/ui/dropdown-menu'
+import { InlineField } from '@/components/ui/labeled-value'
 import {
   formatCurrency,
   formatNumber,
@@ -171,20 +172,20 @@ export function PositionCard({
         </div>
 
         <div className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4 lg:grid-cols-6">
-          <Field label="מחיר ממוצע" value={`$${formatCurrency(position.avgEntryPrice)}`} />
-          <Field label="כמות נוכחית" value={formatNumber(position.currentShares)} />
-          <Field
+          <InlineField label="מחיר ממוצע" value={`$${formatCurrency(position.avgEntryPrice)}`} />
+          <InlineField label="כמות נוכחית" value={formatNumber(position.currentShares)} />
+          <InlineField
             label="סטופ"
             value={`$${formatCurrency(position.stopLoss)}${stopPct !== null ? ` (-${formatPercentage(stopPct)})` : ''}`}
             className={percentageColorClass(stopPct)}
           />
-          <Field label="יעד" value={position.targetPrice ? `$${formatCurrency(position.targetPrice)}` : '—'} />
-          <Field
+          <InlineField label="יעד" value={position.targetPrice ? `$${formatCurrency(position.targetPrice)}` : '—'} />
+          <InlineField
             label="R/R מתוכנן"
             value={position.plannedRR !== null ? formatCurrency(position.plannedRR) : '—'}
             className={rrColorClass(position.plannedRR)}
           />
-          <Field
+          <InlineField
             label="2R / 3R / 4R"
             value={
               position.target2R && position.target3R
@@ -283,11 +284,3 @@ export function PositionCard({
   )
 }
 
-function Field({ label, value, className }: { label: string; value: string; className?: string }) {
-  return (
-    <div>
-      <div className="text-[11px] text-text-muted">{label}</div>
-      <div className={cn('font-medium num-tabular', className)}>{value}</div>
-    </div>
-  )
-}
