@@ -34,6 +34,7 @@ var POSITIONS_HEADERS = [
   'קטגוריה/תגית', 'תאריך סגירה', 'סיבת כניסה/סטאפ', 'קישור צ\'ארט הפוזיציה',
   'הערות', 'שווי מצטבר (equity)', 'מחיר נוכחי (לא ממומש)', 'עמלות שנצברו $', 'מועדף', 'יעד 4R',
   'סקירת עסקה (לקחים/טעויות/הפרות כלל)', 'התראת סטופ נשלחה',
+  'תגיות', 'פעלתי לפי התוכנית',
 ];
 
 // כותרות לשונית "פעולות"
@@ -190,6 +191,7 @@ function buildTradesView_(params) {
       realizedPnl: t.realizedPnl, realizedR: t.realizedR, outcome: t.outcome,
       winLoss: t.winLoss, category: t.category, closeDate: t.closeDate,
       currentPrice: t.currentPrice, isFavorite: t.isFavorite,
+      tags: t.tags, followedPlan: t.followedPlan,
     };
   });
 
@@ -518,6 +520,17 @@ function handleClose_(body) {
     var prevNotes = current['הערות'] || '';
     updateCell_(sheet, rowIndex, 'הערות', prevNotes ? prevNotes + ' | ' + body.notes : body.notes);
   }
+  // סקירת עסקה, תגיות, ו"פעלתי לפי התוכנית" — רגע הסגירה הוא ההזדמנות הטבעית לתעד אותם,
+  // אבל אפשר גם לעדכן מאוחר יותר דרך handleUpdate_
+  if (body.tradeReview !== undefined && body.tradeReview !== null) {
+    updateCell_(sheet, rowIndex, 'סקירת עסקה (לקחים/טעויות/הפרות כלל)', body.tradeReview);
+  }
+  if (body.tags !== undefined) {
+    updateCell_(sheet, rowIndex, 'תגיות', Array.isArray(body.tags) ? body.tags.join(', ') : (body.tags || ''));
+  }
+  if (body.followedPlan !== undefined) {
+    updateCell_(sheet, rowIndex, 'פעלתי לפי התוכנית', body.followedPlan === null ? '' : body.followedPlan);
+  }
 
   addExecutionRow_({
     execId: 'E-' + Utilities.getUuid().slice(0, 8),
@@ -576,6 +589,12 @@ function handleUpdate_(body) {
   }
   if (body.tradeReview !== undefined && body.tradeReview !== null) {
     updateCell_(sheet, rowIndex, 'סקירת עסקה (לקחים/טעויות/הפרות כלל)', body.tradeReview);
+  }
+  if (body.tags !== undefined) {
+    updateCell_(sheet, rowIndex, 'תגיות', Array.isArray(body.tags) ? body.tags.join(', ') : (body.tags || ''));
+  }
+  if (body.followedPlan !== undefined) {
+    updateCell_(sheet, rowIndex, 'פעלתי לפי התוכנית', body.followedPlan === null ? '' : body.followedPlan);
   }
 
   return { tradeId: body.tradeId };
@@ -1254,6 +1273,8 @@ function readPositions_() {
       isFavorite: row[30] === true,
       target4R: row[31] === '' || row[31] === undefined ? null : Number(row[31]),
       tradeReview: row[32] || '',
+      tags: row[34] ? String(row[34]).split(',').map(function (s) { return s.trim(); }).filter(function (s) { return s; }) : [],
+      followedPlan: row[35] === '' || row[35] === undefined ? null : row[35] === true,
     };
   });
 }

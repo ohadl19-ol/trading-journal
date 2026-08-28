@@ -89,6 +89,7 @@ export function StatisticsPage({ positions, initialCapital, filter, onFilterChan
 
   const maxPatternAbs = Math.max(1, ...stats.patternBreakdown.map((p) => Math.abs(p.pnl)))
   const maxCategoryAbs = Math.max(1, ...stats.categoryBreakdown.map((p) => Math.abs(p.pnl)))
+  const maxTagAbs = Math.max(1, ...stats.tagBreakdown.map((p) => Math.abs(p.pnl)))
 
   return (
     <div className="space-y-4">
@@ -208,6 +209,27 @@ export function StatisticsPage({ positions, initialCapital, filter, onFilterChan
         />
       </StatSection>
 
+      <StatSection title="משמעת — פעלתי לפי התוכנית?">
+        <StatTile
+          label={`אחוז הצלחה כשפעלתי לפי התוכנית (${stats.followedPlanStats.followedCount})`}
+          value={
+            stats.followedPlanStats.followedWinRate !== null
+              ? formatPercentage(stats.followedPlanStats.followedWinRate * 100)
+              : '—'
+          }
+          valueClass="text-win"
+        />
+        <StatTile
+          label={`אחוז הצלחה כשסטיתי מהתוכנית (${stats.followedPlanStats.notFollowedCount})`}
+          value={
+            stats.followedPlanStats.notFollowedWinRate !== null
+              ? formatPercentage(stats.followedPlanStats.notFollowedWinRate * 100)
+              : '—'
+          }
+          valueClass="text-loss"
+        />
+      </StatSection>
+
       <Card>
         <CardHeader className="flex-row items-center justify-between gap-3">
           <CardTitle>עקומת הון</CardTitle>
@@ -301,6 +323,20 @@ export function StatisticsPage({ positions, initialCapital, filter, onFilterChan
             )}
             {stats.categoryBreakdown.map((c) => (
               <BreakdownRow key={c.name} name={c.name} pnl={c.pnl} count={c.count} maxAbs={maxCategoryAbs} />
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>פילוח לפי תגיות (טעויות/מצב שוק/איכות ההזדמנות)</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {stats.tagBreakdown.length === 0 && (
+              <p className="text-sm text-text-muted">עדיין לא סימנת תגיות באף עסקה — אפשר להוסיף בעריכת פרטים או בסגירת עסקה</p>
+            )}
+            {stats.tagBreakdown.map((t) => (
+              <BreakdownRow key={t.name} name={t.name} pnl={t.pnl} count={t.count} maxAbs={maxTagAbs} />
             ))}
           </CardContent>
         </Card>

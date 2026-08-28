@@ -330,6 +330,14 @@ export function formatHoldingTime(hours: number | null): string {
   return rem > 0 ? `${days} ימים ${rem} שעות` : `${days} ימים`
 }
 
+/** אחוז הצלחה בהשוואה בין עסקאות שבהן פעלת לפי התוכנית לבין כאלה שבהן סטית ממנה */
+export interface FollowedPlanStats {
+  followedCount: number
+  followedWinRate: number | null
+  notFollowedCount: number
+  notFollowedWinRate: number | null
+}
+
 export interface StatsResult {
   initialCapital: number
   totalRealizedPnl: number
@@ -344,6 +352,8 @@ export interface StatsResult {
   expectancy: number
   patternBreakdown: PatternBreakdown[]
   categoryBreakdown: PatternBreakdown[]
+  tagBreakdown: PatternBreakdown[]
+  followedPlanStats: FollowedPlanStats
   closedTrades: Position[]
 }
 
@@ -394,6 +404,32 @@ export function computeStatistics(positions: Position[], initialCapital: number)
     categoryMap.set(key, entry)
   }
 
+  // תגית יכולה להופיע בכמה עסקאות שונות (ובכל עסקה יכולות להיות כמה תגיות יחד) — כל
+  // עסקה תורמת לכל תגית שסומנה עליה בנפרד, כדי לראות אילו טעויות/תנאים חוזרים הכי הרבה
+  const tagMap = new Map<string, PatternBreakdown>()
+  for (const p of closedTrades) {
+    for (const tag of p.tags) {
+      const entry = tagMap.get(tag) || { name: tag, pnl: 0, count: 0 }
+      entry.pnl += p.realizedPnl
+      entry.count += 1
+      tagMap.set(tag, entry)
+    }
+  }
+
+  const winRateOf = (trades: Position[]) => {
+    const decided = trades.filter((p) => p.winLoss === 'WIN' || p.winLoss === 'LOSS')
+    if (decided.length === 0) return null
+    return decided.filter((p) => p.winLoss === 'WIN').length / decided.length
+  }
+  const followedTrades = closedTrades.filter((p) => p.followedPlan === true)
+  const notFollowedTrades = closedTrades.filter((p) => p.followedPlan === false)
+  const followedPlanStats: FollowedPlanStats = {
+    followedCount: followedTrades.length,
+    followedWinRate: winRateOf(followedTrades),
+    notFollowedCount: notFollowedTrades.length,
+    notFollowedWinRate: winRateOf(notFollowedTrades),
+  }
+
   return {
     initialCapital,
     totalRealizedPnl,
@@ -408,6 +444,8 @@ export function computeStatistics(positions: Position[], initialCapital: number)
     expectancy,
     patternBreakdown: Array.from(patternMap.values()).sort((a, b) => b.pnl - a.pnl),
     categoryBreakdown: Array.from(categoryMap.values()).sort((a, b) => b.pnl - a.pnl),
+    tagBreakdown: Array.from(tagMap.values()).sort((a, b) => b.pnl - a.pnl),
+    followedPlanStats,
     closedTrades,
   }
 }

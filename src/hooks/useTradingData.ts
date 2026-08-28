@@ -50,6 +50,10 @@ export interface CloseInput {
   notes: string
   /** תאריך+שעת סגירה מדויקים (ISO). אם לא סופק, נעשה שימוש ברגע הנוכחי */
   closeDate?: string
+  /** תגיות/פעלתי-לפי-התוכנית/סקירת עסקה — הזדמנות טבעית למלא בזמן הסגירה, אבל אופציונלי */
+  tags?: string[]
+  followedPlan?: boolean | null
+  tradeReview?: string
 }
 
 export interface UpdatePositionInput {
@@ -61,6 +65,9 @@ export interface UpdatePositionInput {
   currentPrice?: number | null
   stopLoss?: number
   isFavorite?: boolean
+  tags?: string[]
+  followedPlan?: boolean | null
+  tradeReview?: string
 }
 
 export interface AddWatchlistInput {
@@ -200,6 +207,9 @@ export function useTradingData(settings: AppSettings) {
         currentPrice: null,
         accruedCommission: settings.commissionPerAction,
         isFavorite: false,
+        tags: [],
+        followedPlan: null,
+        tradeReview: '',
       }
 
       const newExecution: Execution = {
@@ -379,6 +389,9 @@ export function useTradingData(settings: AppSettings) {
         currentPositionSize: 0,
         notes: input.notes ? `${pos.notes ? pos.notes + ' | ' : ''}${input.notes}` : pos.notes,
         accruedCommission: 0,
+        tags: input.tags ?? pos.tags,
+        followedPlan: input.followedPlan !== undefined ? input.followedPlan : pos.followedPlan,
+        tradeReview: input.tradeReview ?? pos.tradeReview,
       }
       const newExecution: Execution = {
         execId: generateId('E'),
@@ -409,6 +422,9 @@ export function useTradingData(settings: AppSettings) {
         notes: input.notes,
         timestamp,
         commissionPerAction: settings.commissionPerAction,
+        tags: input.tags,
+        followedPlan: input.followedPlan,
+        tradeReview: input.tradeReview,
       })
       await refresh()
     },
@@ -429,6 +445,9 @@ export function useTradingData(settings: AppSettings) {
         currentPrice: input.currentPrice !== undefined ? input.currentPrice : pos.currentPrice,
         stopLoss: input.stopLoss ?? pos.stopLoss,
         isFavorite: input.isFavorite ?? pos.isFavorite,
+        tags: input.tags ?? pos.tags,
+        followedPlan: input.followedPlan !== undefined ? input.followedPlan : pos.followedPlan,
+        tradeReview: input.tradeReview ?? pos.tradeReview,
       }
 
       const nextPositions = positions.map((p) => (p.tradeId === pos.tradeId ? updatedPosition : p))
@@ -445,6 +464,9 @@ export function useTradingData(settings: AppSettings) {
         currentPrice: input.currentPrice,
         stopLoss: input.stopLoss,
         isFavorite: input.isFavorite,
+        tags: input.tags,
+        followedPlan: input.followedPlan,
+        tradeReview: input.tradeReview,
       })
       await refresh()
     },

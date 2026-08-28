@@ -279,6 +279,29 @@ export function PositionCard({
             {position.notes && <p>📝 {position.notes}</p>}
           </div>
         )}
+
+        {(position.followedPlan !== null || position.tags.length > 0 || position.tradeReview) && (
+          <div className="mt-2 space-y-1.5 border-t border-border pt-2">
+            {position.followedPlan !== null && (
+              <Badge variant={position.followedPlan ? 'win' : 'loss'}>
+                {position.followedPlan ? '✔ פעלתי לפי התוכנית' : '✘ סטיתי מהתוכנית'}
+              </Badge>
+            )}
+            {position.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {position.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-full border border-border bg-surface-2 px-2 py-0.5 text-[11px] text-text-muted"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
+            {position.tradeReview && <p className="text-sm text-text-muted">📓 {position.tradeReview}</p>}
+          </div>
+        )}
       </CardContent>
     </Card>
   )

@@ -6,8 +6,8 @@ import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
-import { CATEGORY_OPTIONS, OUTCOME_OPTIONS, PATTERN_OPTIONS, type Position } from '@/types'
-import { combineDateTimeToIso } from '@/lib/utils'
+import { CATEGORY_OPTIONS, OUTCOME_OPTIONS, PATTERN_OPTIONS, TRADE_TAG_GROUPS, type Position } from '@/types'
+import { combineDateTimeToIso, cn } from '@/lib/utils'
 import type {
   AddSharesInput,
   CloseInput,
@@ -72,6 +72,15 @@ export function PositionDialogs({
   const [editCurrentPrice, setEditCurrentPrice] = React.useState('')
   const [editStopLoss, setEditStopLoss] = React.useState(position ? String(position.stopLoss) : '')
 
+  // סקירת עסקה — משותף לסגירה ולעריכת פרטים (בשני המקומות אפשר לתעד תגיות/משמעת/לקחים)
+  const [reviewTags, setReviewTags] = React.useState<string[]>([])
+  const [reviewFollowedPlan, setReviewFollowedPlan] = React.useState<boolean | null>(null)
+  const [reviewNotes, setReviewNotes] = React.useState('')
+
+  function toggleReviewTag(tag: string) {
+    setReviewTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]))
+  }
+
   React.useEffect(() => {
     if (position && mode === 'chart') setChartUrl(position.chartUrl ?? '')
     if (position && mode === 'edit') {
@@ -98,6 +107,11 @@ export function PositionDialogs({
       setCloseNotes('')
       setCloseDate('')
       setCloseTime('')
+    }
+    if (position && (mode === 'close' || mode === 'edit')) {
+      setReviewTags(position.tags ?? [])
+      setReviewFollowedPlan(position.followedPlan ?? null)
+      setReviewNotes(position.tradeReview ?? '')
     }
   }, [position, mode])
 
@@ -259,6 +273,16 @@ export function PositionDialogs({
           <p className="-mt-1 text-xs text-text-muted">
             השאר ריק כדי להשתמש ברגע הנוכחי (עדכון אוטומטי בזמן לחיצה על "אישור סגירת עסקה")
           </p>
+
+          <TradeReviewSection
+            followedPlan={reviewFollowedPlan}
+            onFollowedPlanChange={setReviewFollowedPlan}
+            tags={reviewTags}
+            onToggleTag={toggleReviewTag}
+            notes={reviewNotes}
+            onNotesChange={setReviewNotes}
+          />
+
           <Button
             variant="destructive"
             className="w-full"
@@ -273,6 +297,9 @@ export function PositionDialogs({
                     category,
                     notes: closeNotes,
                     closeDate: combineDateTimeToIso(closeDate, closeTime),
+                    tags: reviewTags,
+                    followedPlan: reviewFollowedPlan,
+                    tradeReview: reviewNotes,
                   }),
                 'העסקה נסגרה',
               )
@@ -374,6 +401,16 @@ export function PositionDialogs({
               />
             </div>
           )}
+
+          <TradeReviewSection
+            followedPlan={reviewFollowedPlan}
+            onFollowedPlanChange={setReviewFollowedPlan}
+            tags={reviewTags}
+            onToggleTag={toggleReviewTag}
+            notes={reviewNotes}
+            onNotesChange={setReviewNotes}
+          />
+
           <Button
             className="w-full"
             disabled={submitting}
@@ -389,6 +426,9 @@ export function PositionDialogs({
                     // בנוסחה החיה שכבר יושבת בתא (ראה הערה למעלה על editCurrentPrice)
                     ...(editCurrentPrice !== '' ? { currentPrice: parseFloat(editCurrentPrice) } : {}),
                     stopLoss: editStopLoss === '' ? undefined : parseFloat(editStopLoss),
+                    tags: reviewTags,
+                    followedPlan: reviewFollowedPlan,
+                    tradeReview: reviewNotes,
                   }),
                 'הפרטים עודכנו',
               )
@@ -402,4 +442,86 @@ export function PositionDialogs({
   }
 
   return null
+}
+
+/**
+ * "סקירת עסקה": האם פעלת לפי התוכנית, תגיות שמתארות מה קרה בעסקה (בנפרד מ"קטגוריה" —
+ * כאן אפשר לסמן כמה יחד), והערה חופשית. עוזר בהמשך לראות בסטטיסטיקה אילו טעויות/הרגלים
+ * חוזרים על עצמם הכי הרבה, לא רק מה התוצאה של כל עסקה.
+ */
+function TradeReviewSection({
+  followedPlan,
+  onFollowedPlanChange,
+  tags,
+  onToggleTag,
+  notes,
+  onNotesChange,
+}: {
+  followedPlan: boolean | null
+  onFollowedPlanChange: (value: boolean | null) => void
+  tags: string[]
+  onToggleTag: (tag: string) => void
+  notes: string
+  onNotesChange: (value: string) => void
+}) {
+  return (
+    <div className="space-y-3 border-t border-border pt-3">
+      <div className="text-sm font-medium text-text">סקירת עסקה (אופציונלי)</div>
+
+      <div>
+        <Label>פעלתי לפי התוכנית שקבעתי מראש?</Label>
+        <div className="flex gap-2">
+          {(
+            [
+              { value: null, label: 'לא צוין' },
+              { value: true, label: 'כן' },
+              { value: false, label: 'לא' },
+            ] as const
+          ).map((opt) => (
+            <button
+              key={String(opt.value)}
+              type="button"
+              onClick={() => onFollowedPlanChange(opt.value)}
+              className={cn(
+                'flex-1 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors',
+                followedPlan === opt.value
+                  ? 'border-accent bg-accent/15 text-accent'
+                  : 'border-border text-text-muted hover:text-text',
+              )}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {Object.entries(TRADE_TAG_GROUPS).map(([groupName, groupTags]) => (
+        <div key={groupName}>
+          <Label>{groupName}</Label>
+          <div className="flex flex-wrap gap-1.5">
+            {groupTags.map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => onToggleTag(tag)}
+                className={cn(
+                  'rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
+                  tags.includes(tag)
+                    ? 'border-accent bg-accent/15 text-accent'
+                    : 'border-border text-text-muted hover:text-text',
+                )}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      <div>
+        <Label>מה למדתי / הערה חופשית</Label>
+        <Textarea value={notes} onChange={(e) => onNotesChange(e.target.value)} rows={2} />
+      </div>
+    </div>
+  )
 }
