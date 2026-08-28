@@ -10,6 +10,7 @@ import { SettingsPage } from '@/pages/SettingsPage'
 import { PatternsGuidePage } from '@/pages/PatternsGuidePage'
 import { WatchlistPage } from '@/pages/WatchlistPage'
 import { NotesPage } from '@/pages/NotesPage'
+import { Dialog } from '@/components/ui/dialog'
 import { useTradingData } from '@/hooks/useTradingData'
 import { loadSettings, saveSettings } from '@/lib/storage'
 import { computeEquitySummary, computeEquityCurve } from '@/lib/statistics'
@@ -18,7 +19,7 @@ import { Sparkline } from '@/components/Sparkline'
 import { getStoredTheme, applyTheme, type Theme } from '@/lib/theme'
 import type { AppSettings, DateRangeFilter, WatchlistItem } from '@/types'
 
-type TabValue = 'dashboard' | 'calculator' | 'journal' | 'statistics' | 'patterns' | 'watchlist' | 'notes' | 'settings'
+type TabValue = 'dashboard' | 'calculator' | 'journal' | 'statistics' | 'watchlist' | 'notes' | 'settings'
 
 function AppShell() {
   const [tab, setTab] = React.useState<TabValue>('dashboard')
@@ -27,6 +28,8 @@ function AppShell() {
   const [theme, setTheme] = React.useState<Theme>(() => getStoredTheme())
   // תוכנית מסחר שמורה שנבחרה ברשימת המעקב ("בצע כניסה לעסקה") — ממלאת את המחשבון בטאב הבא שייפתח
   const [calculatorPrefill, setCalculatorPrefill] = React.useState<WatchlistItem | null>(null)
+  // מדריך תבניות עבר מטאב קבוע לחלונית עזרה, כדי לפנות מקום בשורת הטאבים לדברים שנצפים לעיתים קרובות יותר
+  const [showPatternsGuide, setShowPatternsGuide] = React.useState(false)
 
   React.useEffect(() => applyTheme(theme), [theme])
 
@@ -148,6 +151,13 @@ function AppShell() {
               </button>
             )}
             <button
+              onClick={() => setShowPatternsGuide(true)}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-text-muted hover:text-text"
+              title="מדריך תבניות"
+            >
+              <BookMarked className="h-4 w-4" />
+            </button>
+            <button
               onClick={() => setTab('settings')}
               className={`flex h-9 w-9 items-center justify-center rounded-lg border border-border text-text-muted hover:text-text ${tab === 'settings' ? 'bg-accent/15 text-accent' : ''}`}
               title="הגדרות"
@@ -158,6 +168,12 @@ function AppShell() {
         </div>
       </header>
 
+      {showPatternsGuide && (
+        <Dialog open onClose={() => setShowPatternsGuide(false)} title="מדריך תבניות" className="max-w-3xl">
+          <PatternsGuidePage />
+        </Dialog>
+      )}
+
       <main className="mx-auto max-w-6xl space-y-4 px-4 py-6">
         <Tabs
           value={tab}
@@ -167,7 +183,6 @@ function AppShell() {
             { value: 'calculator', label: 'מחשבון', icon: <Calculator className="h-4 w-4" /> },
             { value: 'journal', label: 'יומן עסקאות', icon: <BookOpen className="h-4 w-4" /> },
             { value: 'statistics', label: 'סטטיסטיקה', icon: <BarChart3 className="h-4 w-4" /> },
-            { value: 'patterns', label: 'מדריך תבניות', icon: <BookMarked className="h-4 w-4" /> },
             { value: 'watchlist', label: 'רשימת מעקב', icon: <Eye className="h-4 w-4" /> },
             { value: 'notes', label: 'הערות וכללים', icon: <NotebookPen className="h-4 w-4" /> },
           ]}
@@ -217,7 +232,6 @@ function AppShell() {
             onFilterChange={setFilter}
           />
         )}
-        {tab === 'patterns' && <PatternsGuidePage />}
         {tab === 'watchlist' && (
           <WatchlistPage
             watchlist={watchlist}

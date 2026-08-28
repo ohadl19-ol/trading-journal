@@ -33,6 +33,7 @@ export function WatchlistPage({ watchlist, onAdd, onUpdate, onDelete, onOpenTrad
   const [direction, setDirection] = React.useState<AlertDirection>('above')
   const [notes, setNotes] = React.useState('')
   const [pattern, setPattern] = React.useState('')
+  const [showMoreOptions, setShowMoreOptions] = React.useState(false)
   const [submitting, setSubmitting] = React.useState(false)
   const [editItem, setEditItem] = React.useState<WatchlistItem | null>(null)
 
@@ -87,6 +88,7 @@ export function WatchlistPage({ watchlist, onAdd, onUpdate, onDelete, onOpenTrad
       setDirection('above')
       setNotes('')
       setPattern('')
+      setShowMoreOptions(false)
     } catch (err) {
       toast(err instanceof Error ? err.message : 'שגיאה בהוספה לרשימת המעקב', 'error')
     } finally {
@@ -133,42 +135,53 @@ export function WatchlistPage({ watchlist, onAdd, onUpdate, onDelete, onOpenTrad
           <CardTitle>הוספת מניה למעקב — "{activeList}"</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex-1">
               <Label>סימול *</Label>
               <Input value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} placeholder="AAPL" />
             </div>
-            <div>
-              <Label>סוג הגרף (Pattern)</Label>
-              <PatternSelect value={pattern} onChange={setPattern} />
-            </div>
-            <div>
-              <Label>מחיר יעד להתראה</Label>
-              <Input
-                type="number"
-                value={targetPrice}
-                onChange={(e) => setTargetPrice(e.target.value)}
-                placeholder="לדוגמה 150.00"
-              />
-            </div>
-            <div>
-              <Label>כיוון ההתראה</Label>
-              <Select value={direction} onChange={(e) => setDirection(e.target.value as AlertDirection)}>
-                <option value="above">מגיע מעל היעד</option>
-                <option value="below">יורד מתחת ליעד</option>
-              </Select>
-            </div>
-            <div className="flex items-end">
-              <Button className="w-full" disabled={!isValid || submitting} onClick={handleAdd}>
-                <Plus className="h-4 w-4" />
-                {submitting ? 'מוסיף...' : 'הוסף למעקב'}
-              </Button>
-            </div>
+            <Button disabled={!isValid || submitting} onClick={handleAdd}>
+              <Plus className="h-4 w-4" />
+              {submitting ? 'מוסיף...' : 'הוסף למעקב'}
+            </Button>
           </div>
-          <div className="mt-3">
-            <Label>הערות</Label>
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="למה אתה עוקב אחרי המניה הזו..." />
-          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowMoreOptions((v) => !v)}
+            className="mt-2 text-xs font-medium text-accent hover:underline"
+          >
+            {showMoreOptions ? 'הסתר עוד אפשרויות' : 'עוד אפשרויות (תבנית, יעד להתראה, הערות)'}
+          </button>
+
+          {showMoreOptions && (
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div>
+                <Label>סוג הגרף (Pattern)</Label>
+                <PatternSelect value={pattern} onChange={setPattern} />
+              </div>
+              <div>
+                <Label>מחיר יעד להתראה</Label>
+                <Input
+                  type="number"
+                  value={targetPrice}
+                  onChange={(e) => setTargetPrice(e.target.value)}
+                  placeholder="לדוגמה 150.00"
+                />
+              </div>
+              <div>
+                <Label>כיוון ההתראה</Label>
+                <Select value={direction} onChange={(e) => setDirection(e.target.value as AlertDirection)}>
+                  <option value="above">מגיע מעל היעד</option>
+                  <option value="below">יורד מתחת ליעד</option>
+                </Select>
+              </div>
+              <div className="sm:col-span-3">
+                <Label>הערות</Label>
+                <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="למה אתה עוקב אחרי המניה הזו..." />
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
