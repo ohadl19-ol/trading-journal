@@ -72,8 +72,10 @@ export interface UpdatePositionInput {
 
 export interface AddWatchlistInput {
   symbol: string
-  targetPrice: number | null
-  alertDirection: AlertDirection
+  // התראת מחיר יעד יצאה משימוש (המשתמש עוקב אחרי פריצות דרך TradingView במקום) —
+  // נשארת אופציונלית כאן רק לתאימות לאחור עם נתונים ישנים, לא נחשפת יותר ב-UI
+  targetPrice?: number | null
+  alertDirection?: AlertDirection
   notes: string
   listName: string
   plannedEntryPrice?: number | null
@@ -515,8 +517,8 @@ export function useTradingData(settings: AppSettings) {
         watchId,
         symbol: input.symbol.toUpperCase(),
         addedDate,
-        targetPrice: input.targetPrice,
-        alertDirection: input.alertDirection,
+        targetPrice: input.targetPrice ?? null,
+        alertDirection: input.alertDirection ?? 'above',
         notes: input.notes,
         currentPrice: null,
         alertTriggered: false,

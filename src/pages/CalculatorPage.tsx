@@ -224,8 +224,6 @@ export function CalculatorPage({
     try {
       await onSaveToWatchlist({
         symbol: symbol.trim(),
-        targetPrice: targetPriceNum,
-        alertDirection: 'above',
         notes: setupReason,
         listName: watchlistTarget,
         plannedEntryPrice: entryPriceNum || null,

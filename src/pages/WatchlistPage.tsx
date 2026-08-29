@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Plus, Trash2, Bell, BellRing, TrendingUp, TrendingDown, Pencil, Send, Bookmark, ArrowUp, ArrowDown } from 'lucide-react'
+import { Plus, Trash2, TrendingUp, Pencil, Send, Bookmark, ArrowUp, ArrowDown } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils'
 import { DEFAULT_WATCHLIST_NAMES, DEFAULT_WATCHLIST_NAME } from '@/lib/watchlist'
 import { PatternSelect } from '@/components/PatternSelect'
 import { InlineField } from '@/components/ui/labeled-value'
-import type { AlertDirection, WatchlistItem } from '@/types'
+import type { WatchlistItem } from '@/types'
 import type { AddWatchlistInput, UpdateWatchlistInput } from '@/hooks/useTradingData'
 
 interface WatchlistPageProps {
@@ -29,8 +29,6 @@ interface WatchlistPageProps {
 export function WatchlistPage({ watchlist, onAdd, onUpdate, onDelete, onOpenTradeFromPlan }: WatchlistPageProps) {
   const { toast } = useToast()
   const [symbol, setSymbol] = React.useState('')
-  const [targetPrice, setTargetPrice] = React.useState('')
-  const [direction, setDirection] = React.useState<AlertDirection>('above')
   const [notes, setNotes] = React.useState('')
   const [pattern, setPattern] = React.useState('')
   const [showMoreOptions, setShowMoreOptions] = React.useState(false)
@@ -76,16 +74,12 @@ export function WatchlistPage({ watchlist, onAdd, onUpdate, onDelete, onOpenTrad
     try {
       await onAdd({
         symbol: symbol.trim(),
-        targetPrice: targetPrice === '' ? null : parseFloat(targetPrice),
-        alertDirection: direction,
         notes,
         listName: activeList,
         plannedPattern: pattern,
       })
       toast(`${symbol.toUpperCase()} נוסף ל"${activeList}"`)
       setSymbol('')
-      setTargetPrice('')
-      setDirection('above')
       setNotes('')
       setPattern('')
       setShowMoreOptions(false)
@@ -151,32 +145,16 @@ export function WatchlistPage({ watchlist, onAdd, onUpdate, onDelete, onOpenTrad
             onClick={() => setShowMoreOptions((v) => !v)}
             className="mt-2 text-xs font-medium text-accent hover:underline"
           >
-            {showMoreOptions ? 'הסתר עוד אפשרויות' : 'עוד אפשרויות (תבנית, יעד להתראה, הערות)'}
+            {showMoreOptions ? 'הסתר עוד אפשרויות' : 'עוד אפשרויות (תבנית, הערות)'}
           </button>
 
           {showMoreOptions && (
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <Label>סוג הגרף (Pattern)</Label>
                 <PatternSelect value={pattern} onChange={setPattern} />
               </div>
               <div>
-                <Label>מחיר יעד להתראה</Label>
-                <Input
-                  type="number"
-                  value={targetPrice}
-                  onChange={(e) => setTargetPrice(e.target.value)}
-                  placeholder="לדוגמה 150.00"
-                />
-              </div>
-              <div>
-                <Label>כיוון ההתראה</Label>
-                <Select value={direction} onChange={(e) => setDirection(e.target.value as AlertDirection)}>
-                  <option value="above">מגיע מעל היעד</option>
-                  <option value="below">יורד מתחת ליעד</option>
-                </Select>
-              </div>
-              <div className="sm:col-span-3">
                 <Label>הערות</Label>
                 <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="למה אתה עוקב אחרי המניה הזו..." />
               </div>
@@ -235,11 +213,6 @@ function WatchlistCard({
   onMoveUp?: () => void
   onMoveDown?: () => void
 }) {
-  const hasTarget = item.targetPrice !== null
-  const distancePct =
-    hasTarget && item.currentPrice !== null
-      ? ((item.currentPrice - item.targetPrice!) / item.targetPrice!) * 100
-      : null
   const hasPlan = item.plannedEntryPrice !== null && item.plannedStopLoss !== null
   const planStopPct =
     hasPlan && item.plannedEntryPrice! > item.plannedStopLoss!
@@ -247,7 +220,7 @@ function WatchlistCard({
       : null
 
   return (
-    <Card className={cn('flex', item.alertTriggered && 'border-warn ring-1 ring-warn/40')}>
+    <Card className="flex">
       <div className="flex shrink-0 flex-col justify-center gap-0.5 border-l border-border px-1.5">
         <button
           onClick={onMoveUp}
@@ -267,12 +240,6 @@ function WatchlistCard({
         </button>
       </div>
       <CardContent className="flex-1 p-4">
-        {item.alertTriggered && (
-          <div className="mb-3 flex items-center gap-2 rounded-lg bg-warn-bg px-3 py-2 text-sm font-medium text-warn">
-            <BellRing className="h-4 w-4 shrink-0" />
-            ההתראה הופעלה{item.alertTriggeredDate && ` — ${new Date(item.alertTriggeredDate).toLocaleString('he-IL')}`}
-          </div>
-        )}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-2">
@@ -300,28 +267,6 @@ function WatchlistCard({
             </div>
             <div className="text-xs text-text-muted">מחיר נוכחי</div>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2 border-t border-border pt-3 text-sm">
-          <Bell className="h-3.5 w-3.5 text-text-muted" />
-          {hasTarget ? (
-            <span className="flex items-center gap-1">
-              {item.alertDirection === 'above' ? (
-                <TrendingUp className="h-3.5 w-3.5 text-win" />
-              ) : (
-                <TrendingDown className="h-3.5 w-3.5 text-loss" />
-              )}
-              יעד: ${formatCurrency(item.targetPrice!)}
-              {distancePct !== null && (
-                <span className={cn('num-tabular text-xs', distancePct >= 0 ? 'text-win' : 'text-loss')}>
-                  ({distancePct >= 0 ? '+' : ''}
-                  {distancePct.toFixed(1)}%)
-                </span>
-              )}
-            </span>
-          ) : (
-            <span className="text-text-muted">בלי יעד התראה</span>
-          )}
         </div>
 
         {hasPlan && (
@@ -387,8 +332,6 @@ function EditWatchlistDialog({
   onClose: () => void
   onSave: (input: UpdateWatchlistInput) => Promise<void>
 }) {
-  const [targetPrice, setTargetPrice] = React.useState(item.targetPrice != null ? String(item.targetPrice) : '')
-  const [direction, setDirection] = React.useState<AlertDirection>(item.alertDirection)
   const [notes, setNotes] = React.useState(item.notes)
   const currentList = item.listName || DEFAULT_WATCHLIST_NAME
   const [listName, setListName] = React.useState(currentList)
@@ -409,8 +352,6 @@ function EditWatchlistDialog({
     try {
       await onSave({
         watchId: item.watchId,
-        targetPrice: targetPrice === '' ? null : parseFloat(targetPrice),
-        alertDirection: direction,
         notes,
         listName: finalListName || currentList,
         plannedEntryPrice: planEntry === '' ? null : parseFloat(planEntry),
@@ -446,17 +387,6 @@ function EditWatchlistDialog({
               placeholder="שם רשימה חדשה"
             />
           )}
-        </div>
-        <div>
-          <Label>מחיר יעד להתראה</Label>
-          <Input type="number" value={targetPrice} onChange={(e) => setTargetPrice(e.target.value)} />
-        </div>
-        <div>
-          <Label>כיוון ההתראה</Label>
-          <Select value={direction} onChange={(e) => setDirection(e.target.value as AlertDirection)}>
-            <option value="above">מגיע מעל היעד</option>
-            <option value="below">יורד מתחת ליעד</option>
-          </Select>
         </div>
         <div>
           <Label>הערות</Label>
