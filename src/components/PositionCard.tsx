@@ -273,12 +273,18 @@ export function PositionCard({
           </div>
         )}
 
-        {(position.setupReason || position.notes) && (
-          <div className="mt-2 space-y-1 text-sm text-text-muted">
-            {position.setupReason && <p>💡 {position.setupReason}</p>}
-            {position.notes && <p>📝 {position.notes}</p>}
-          </div>
-        )}
+        <div className="mt-2 space-y-1 text-sm text-text-muted">
+          {position.setupReason && <p>💡 {position.setupReason}</p>}
+          {position.notes && <p>📝 {position.notes}</p>}
+          <button
+            type="button"
+            onClick={onEditDetails}
+            className="flex items-center gap-1 text-xs text-accent hover:underline"
+          >
+            <Pencil className="h-3 w-3" />
+            {position.setupReason || position.notes ? 'ערוך הערות' : 'הוסף הערה / סיבת כניסה'}
+          </button>
+        </div>
 
         {(position.followedPlan != null || (position.tags ?? []).length > 0 || position.tradeReview) && (
           <div className="mt-2 space-y-1.5 border-t border-border pt-2">
