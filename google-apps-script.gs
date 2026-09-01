@@ -232,6 +232,7 @@ var WRITE_ACTIONS_ = {
   watchlistAdd: true, watchlistUpdate: true, watchlistDelete: true,
   saveNotes: true, updateSettings: true,
   addCapitalFlow: true, deleteCapitalFlow: true,
+  fixTimestamps: true,
 };
 
 function doPost(e) {
@@ -298,6 +299,9 @@ function doPost(e) {
         break;
       case 'setApiKey':
         result = handleSetApiKey_(body);
+        break;
+      case 'fixTimestamps':
+        result = handleFixTimestamps_(body);
         break;
       default:
         throw new Error('פעולה לא ידועה: ' + body.action);
@@ -597,6 +601,48 @@ function handleUpdate_(body) {
     updateCell_(sheet, rowIndex, 'פעלתי לפי התוכנית', body.followedPlan === null ? '' : body.followedPlan);
   }
 
+  return { tradeId: body.tradeId };
+}
+
+/**
+ * תיקון חד-פעמי לשעות עסקאות שיובאו מדוחות ברוקר: הזמן שם רשום לפי שעון מזרח ארה"ב
+ * (ET) אבל יובא בטעות כאילו היה UTC, ולכן כל השעות המוצגות היום שגויות באופן שיטתי.
+ * הפעולה הזו דורסת תאריך פתיחה/סגירה של עסקה, ואופציונלית זמני ביצוע ספציפיים
+ * (execId->timestamp), עם הערכים המתוקנים בפועל שכבר חושבו נכון (UTC אמיתי).
+ */
+function handleFixTimestamps_(body) {
+  var sheet = getPositionsSheet_();
+  var rowIndex = findPositionRow_(sheet, body.tradeId);
+  if (rowIndex === -1) throw new Error('פוזיציה לא נמצאה: ' + body.tradeId);
+
+  if (body.openDate) {
+    updateCell_(sheet, rowIndex, 'תאריך פתיחה', body.openDate);
+  }
+  if (body.closeDate !== undefined && body.closeDate !== null) {
+    updateCell_(sheet, rowIndex, 'תאריך סגירה', body.closeDate);
+  }
+
+  if (body.executions && body.executions.length) {
+    var execSheet = getExecutionsSheet_();
+    var lastRow = execSheet.getLastRow();
+    if (lastRow >= 2) {
+      var idCol = EXECUTIONS_HEADERS.indexOf('מזהה פעולה');
+      var tsCol = EXECUTIONS_HEADERS.indexOf('תאריך ושעה') + 1;
+      var ids = execSheet.getRange(2, idCol + 1, lastRow - 1, 1).getValues();
+      var byId = {};
+      body.executions.forEach(function (e) {
+        byId[e.execId] = e.timestamp;
+      });
+      for (var i = 0; i < ids.length; i++) {
+        var id = ids[i][0];
+        if (Object.prototype.hasOwnProperty.call(byId, id)) {
+          execSheet.getRange(i + 2, tsCol).setValue(byId[id]);
+        }
+      }
+    }
+  }
+
+  recalcEquity_(); // תאריך הסגירה קובע את הסדר הכרונולוגי של חישוב השווי המצטבר
   return { tradeId: body.tradeId };
 }
 
