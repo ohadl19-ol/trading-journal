@@ -3,6 +3,7 @@ import {
   AlertOctagon,
   ArrowLeftCircle,
   Award,
+  ExternalLink,
   Flame,
   TrendingDown,
   TrendingUp,
@@ -11,7 +12,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { StatCardSkeleton } from '@/components/ui/skeleton'
-import { StatTile } from '@/components/ui/labeled-value'
+import { StatTile, InlineField } from '@/components/ui/labeled-value'
+import { Dialog } from '@/components/ui/dialog'
 import { EquityCurveChart } from '@/components/EquityCurveChart'
 import { computeEquitySummary, computeEquityCurve, computeStreaks, computeStatistics } from '@/lib/statistics'
 import { formatCurrency, formatPercentage, isStopLossBreached } from '@/lib/calculations'
@@ -60,6 +62,8 @@ export function DashboardPage({ positions, initialCapital, loading, onNavigate }
     [positions],
   )
   const breachedPositions = React.useMemo(() => openPositions.filter(isStopLossBreached), [openPositions])
+
+  const [detailPosition, setDetailPosition] = React.useState<Position | null>(null)
 
   const showSkeleton = loading && positions.length === 0
 
@@ -154,13 +158,11 @@ export function DashboardPage({ positions, initialCapital, loading, onNavigate }
               const unrealized = p.currentPrice != null ? p.currentShares * (p.currentPrice - p.avgEntryPrice) : null
               const breached = isStopLossBreached(p)
               return (
-                <a
+                <button
                   key={p.tradeId}
-                  href={tradingViewSymbolUrl(p.symbol)}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  onClick={() => setDetailPosition(p)}
                   className={cn(
-                    'flex items-center justify-between rounded-lg border border-border bg-surface-2 px-3 py-2 hover:bg-surface',
+                    'flex w-full items-center justify-between rounded-lg border border-border bg-surface-2 px-3 py-2 text-right hover:bg-surface',
                     breached && 'border-loss/50',
                   )}
                 >
@@ -172,7 +174,7 @@ export function DashboardPage({ positions, initialCapital, loading, onNavigate }
                   <span className={cn('num-tabular text-sm font-medium', unrealized === null ? 'text-text-muted' : unrealized >= 0 ? 'text-win' : 'text-loss')}>
                     {unrealized === null ? '—' : `${unrealized >= 0 ? '+' : ''}$${formatCurrency(unrealized)}`}
                   </span>
-                </a>
+                </button>
               )
             })
           )}
@@ -192,6 +194,45 @@ export function DashboardPage({ positions, initialCapital, loading, onNavigate }
             </span>
           </CardContent>
         </Card>
+      )}
+
+      {detailPosition && (
+        <Dialog open={!!detailPosition} onClose={() => setDetailPosition(null)} title={detailPosition.symbol} description="פרטי הפוזיציה הפתוחה">
+          <div className="space-y-4">
+            {detailPosition.setupReason && (
+              <div>
+                <div className="text-[11px] text-text-muted">סיבת כניסה</div>
+                <p className="mt-0.5 text-sm text-text">💡 {detailPosition.setupReason}</p>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <InlineField label="מחיר כניסה" value={`$${formatCurrency(detailPosition.avgEntryPrice)}`} />
+              <InlineField label="כמות מניות" value={String(detailPosition.currentShares)} />
+              <InlineField label="סטופ לוס" value={`$${formatCurrency(detailPosition.stopLoss)}`} />
+              <InlineField label="סכום בסיכון" value={`$${formatCurrency(detailPosition.riskAmount)}`} />
+              {detailPosition.targetPrice != null && (
+                <InlineField label="מחיר יעד" value={`$${formatCurrency(detailPosition.targetPrice)}`} />
+              )}
+              {detailPosition.plannedRR != null && (
+                <InlineField label="יחס R/R מתוכנן" value={detailPosition.plannedRR.toFixed(2)} />
+              )}
+            </div>
+            {detailPosition.notes && (
+              <div>
+                <div className="text-[11px] text-text-muted">הערות</div>
+                <p className="mt-0.5 whitespace-pre-wrap text-sm text-text">{detailPosition.notes}</p>
+              </div>
+            )}
+            <a
+              href={tradingViewSymbolUrl(detailPosition.symbol)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-1.5 rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm font-medium text-text hover:bg-surface"
+            >
+              פתח ב-TradingView <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          </div>
+        </Dialog>
       )}
     </div>
   )
