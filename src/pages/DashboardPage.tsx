@@ -207,6 +207,9 @@ export function DashboardPage({ positions, initialCapital, loading, onNavigate }
             )}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {detailPosition.currentPrice != null && (
+                <InlineField label="מחיר נוכחי" value={`$${formatCurrency(detailPosition.currentPrice)}`} />
+              )}
+              {detailPosition.currentPrice != null && (
                 <InlineField
                   label="רווח/הפסד לא ממומש"
                   value={(() => {
