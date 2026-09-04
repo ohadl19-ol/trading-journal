@@ -62,6 +62,14 @@ export function DashboardPage({ positions, initialCapital, loading, onNavigate }
     [positions],
   )
   const breachedPositions = React.useMemo(() => openPositions.filter(isStopLossBreached), [openPositions])
+  const totalUnrealized = React.useMemo(
+    () =>
+      openPositions.reduce(
+        (sum, p) => (p.currentPrice != null ? sum + p.currentShares * (p.currentPrice - p.avgEntryPrice) : sum),
+        0,
+      ),
+    [openPositions],
+  )
 
   const [detailPosition, setDetailPosition] = React.useState<Position | null>(null)
 
@@ -148,6 +156,22 @@ export function DashboardPage({ positions, initialCapital, loading, onNavigate }
             כל היומן <ArrowLeftCircle className="h-3.5 w-3.5" />
           </button>
         </CardHeader>
+        {!showSkeleton && openPositions.length > 0 && (
+          <CardContent className="flex flex-wrap items-center gap-x-6 gap-y-1 pb-0 pt-0 text-xs text-text-muted">
+            <span>
+              רווח/הפסד יומי:{' '}
+              <b className={today.count > 0 ? (today.pnl >= 0 ? 'text-win' : 'text-loss') : 'text-text'}>
+                {today.count > 0 ? `${today.pnl >= 0 ? '+' : ''}$${formatCurrency(today.pnl)}` : '—'}
+              </b>
+            </span>
+            <span>
+              רווח/הפסד לא ממומש:{' '}
+              <b className={totalUnrealized >= 0 ? 'text-win' : 'text-loss'}>
+                {totalUnrealized >= 0 ? '+' : ''}${formatCurrency(totalUnrealized)}
+              </b>
+            </span>
+          </CardContent>
+        )}
         <CardContent className="space-y-2">
           {showSkeleton ? (
             Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-surface-2" />)
@@ -156,6 +180,7 @@ export function DashboardPage({ positions, initialCapital, loading, onNavigate }
           ) : (
             openPositions.slice(0, 6).map((p) => {
               const unrealized = p.currentPrice != null ? p.currentShares * (p.currentPrice - p.avgEntryPrice) : null
+              const unrealizedPct = p.currentPrice != null && p.avgEntryPrice > 0 ? ((p.currentPrice - p.avgEntryPrice) / p.avgEntryPrice) * 100 : null
               const breached = isStopLossBreached(p)
               return (
                 <button
@@ -169,10 +194,20 @@ export function DashboardPage({ positions, initialCapital, loading, onNavigate }
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-text">{p.symbol}</span>
                     {breached && <Badge variant="loss">סטופ נחצה</Badge>}
-                    <span className="text-xs text-text-muted">{p.currentShares} מניות · ${formatCurrency(p.avgEntryPrice)}</span>
+                    <span className="text-xs text-text-muted">
+                      {p.currentShares} מניות · ${formatCurrency(p.avgEntryPrice)}
+                      {p.currentPrice != null && <> ← ${formatCurrency(p.currentPrice)}</>}
+                    </span>
                   </div>
-                  <span className={cn('num-tabular text-sm font-medium', unrealized === null ? 'text-text-muted' : unrealized >= 0 ? 'text-win' : 'text-loss')}>
-                    {unrealized === null ? '—' : `${unrealized >= 0 ? '+' : ''}$${formatCurrency(unrealized)}`}
+                  <span className="flex items-center gap-2">
+                    {unrealizedPct !== null && (
+                      <span className={cn('num-tabular text-xs', unrealizedPct >= 0 ? 'text-win' : 'text-loss')}>
+                        ({unrealizedPct >= 0 ? '+' : ''}{formatPercentage(unrealizedPct)})
+                      </span>
+                    )}
+                    <span className={cn('num-tabular text-sm font-medium', unrealized === null ? 'text-text-muted' : unrealized >= 0 ? 'text-win' : 'text-loss')}>
+                      {unrealized === null ? '—' : `${unrealized >= 0 ? '+' : ''}$${formatCurrency(unrealized)}`}
+                    </span>
                   </span>
                 </button>
               )
