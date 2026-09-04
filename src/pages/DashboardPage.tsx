@@ -206,6 +206,20 @@ export function DashboardPage({ positions, initialCapital, loading, onNavigate }
               </div>
             )}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {detailPosition.currentPrice != null && (
+                <InlineField
+                  label="רווח/הפסד לא ממומש"
+                  value={(() => {
+                    const unrealized = detailPosition.currentShares * (detailPosition.currentPrice! - detailPosition.avgEntryPrice)
+                    return `${unrealized >= 0 ? '+' : ''}$${formatCurrency(unrealized)}`
+                  })()}
+                  className={
+                    detailPosition.currentShares * (detailPosition.currentPrice - detailPosition.avgEntryPrice) >= 0
+                      ? 'text-win'
+                      : 'text-loss'
+                  }
+                />
+              )}
               <InlineField label="מחיר כניסה" value={`$${formatCurrency(detailPosition.avgEntryPrice)}`} />
               <InlineField label="כמות מניות" value={String(detailPosition.currentShares)} />
               <InlineField label="סטופ לוס" value={`$${formatCurrency(detailPosition.stopLoss)}`} />
