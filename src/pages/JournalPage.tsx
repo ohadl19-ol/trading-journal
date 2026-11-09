@@ -12,7 +12,8 @@ import { cn } from '@/lib/utils'
 import { filterPositionsByDate, getAvailableYears } from '@/lib/dateFilter'
 import { exportFilteredCsv } from '@/lib/csvExport'
 import { exportFilteredZip } from '@/lib/zipExport'
-import { ALL_TRADE_TAGS, PATTERN_OPTIONS, type DateRangeFilter, type Execution, type Position } from '@/types'
+import type { SheetTarget } from '@/lib/accountMode'
+import { ALL_TRADE_TAGS, PATTERN_OPTIONS, PENDING_STATUS, type DateRangeFilter, type Execution, type Position } from '@/types'
 
 type SortMode = 'date-desc' | 'date-asc' | 'pnl-desc' | 'pnl-asc'
 
@@ -34,6 +35,7 @@ interface JournalPageProps {
   executions: Execution[]
   loading: boolean
   webAppUrl: string
+  sheetTarget: SheetTarget | null
   onRefresh: () => void
   onAddShares: (input: AddSharesInput) => Promise<void>
   onTrim: (input: TrimInput) => Promise<void>
@@ -50,6 +52,7 @@ export function JournalPage({
   executions,
   loading,
   webAppUrl,
+  sheetTarget,
   onRefresh,
   onAddShares,
   onTrim,
@@ -141,7 +144,7 @@ export function JournalPage({
     }
     setExportingZip(true)
     try {
-      const result = await exportFilteredZip(webAppUrl, sorted, executions)
+      const result = await exportFilteredZip(webAppUrl, sheetTarget, sorted, executions)
       if (result.imagesIncluded === 0 && result.imagesFailed === 0) {
         toast(`יוצא ZIP עם ${sorted.length} עסקאות (בלי תמונות — אין קישורי צ׳ארט בסינון)`)
       } else {
@@ -209,6 +212,7 @@ export function JournalPage({
             <option value="פתוחה">פתוחה</option>
             <option value="פתוחה חלקית">פתוחה חלקית</option>
             <option value="סגורה">סגורה</option>
+            <option value={PENDING_STATUS}>{PENDING_STATUS}</option>
           </Select>
           <Select value={patternFilter} onChange={(e) => setPatternFilter(e.target.value)}>
             <option value="">כל סוגי הגרף</option>

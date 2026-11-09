@@ -63,7 +63,9 @@ export const TRADE_TAG_GROUPS = {
 
 export const ALL_TRADE_TAGS = Object.values(TRADE_TAG_GROUPS).flat()
 
-export type PositionStatus = 'פתוחה' | 'פתוחה חלקית' | 'סגורה'
+/** 'ממתינה לכניסה' = פקודה שעוד לא בוצעה (למשל קנייה מותנית): אין לה מניות, ואין לה רווח/הפסד */
+export const PENDING_STATUS = 'ממתינה לכניסה' as const
+export type PositionStatus = 'פתוחה' | 'פתוחה חלקית' | 'סגורה' | typeof PENDING_STATUS
 export type WinLoss = 'WIN' | 'LOSS' | ''
 
 export const ACTION_TYPES = ['כניסה', 'חיזוק', 'מכירה חלקית', 'סגירה'] as const

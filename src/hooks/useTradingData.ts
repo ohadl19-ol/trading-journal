@@ -13,6 +13,7 @@ import {
 } from '@/lib/storage'
 import { generateId, nowIso } from '@/lib/utils'
 import { calculatePosition } from '@/lib/calculations'
+import { resolveSheetTarget, type AccountMode } from '@/lib/accountMode'
 
 export interface OpenTradeInput {
   symbol: string
@@ -120,42 +121,64 @@ function recalcEquity(positions: Position[], initialCapital: number): Position[]
   )
 }
 
-export function useTradingData(settings: AppSettings) {
-  const [positions, setPositions] = React.useState<Position[]>(() => loadLocalPositions())
-  const [executions, setExecutions] = React.useState<Execution[]>(() => loadLocalExecutions())
-  const [watchlist, setWatchlist] = React.useState<WatchlistItem[]>(() => loadLocalWatchlist())
-  const [notes, setNotes] = React.useState<GeneralNotes>(() => loadLocalNotes())
+export function useTradingData(settings: AppSettings, mode: AccountMode) {
+  // היעד נקבע פעם אחת לכל מופע של ה-hook (האפליקציה מרכיבה מחדש את כל המסך במעבר מצב),
+  // כך שאין דרך שפעולה שהתחילה במצב אחד תישלח בטעות עם היעד של המצב השני
+  const target = React.useMemo(() => {
+    try {
+      return resolveSheetTarget(mode)
+    } catch {
+      return null
+    }
+  }, [mode])
+  const targetError = React.useMemo(() => {
+    try {
+      resolveSheetTarget(mode)
+      return null
+    } catch (err) {
+      return err instanceof Error ? err.message : 'שגיאה בהגדרת הגיליון'
+    }
+  }, [mode])
+
+  const [positions, setPositions] = React.useState<Position[]>(() => loadLocalPositions(mode))
+  const [executions, setExecutions] = React.useState<Execution[]>(() => loadLocalExecutions(mode))
+  const [watchlist, setWatchlist] = React.useState<WatchlistItem[]>(() => loadLocalWatchlist(mode))
+  const [notes, setNotes] = React.useState<GeneralNotes>(() => loadLocalNotes(mode))
   const [loading, setLoading] = React.useState(false)
   const [syncError, setSyncError] = React.useState<string | null>(null)
   // הגדרות ששמורות בצד השרת (משותפות לכל מכשיר) — null עד שהתקבלה תשובה מהשרת ולו פעם אחת
   const [remoteSettings, setRemoteSettings] = React.useState<RemoteSettings | null>(null)
 
   const persistLocal = React.useCallback((pos: Position[], exec: Execution[]) => {
-    saveLocalPositions(pos)
-    saveLocalExecutions(exec)
-  }, [])
+    saveLocalPositions(pos, mode)
+    saveLocalExecutions(exec, mode)
+  }, [mode])
 
   const refresh = React.useCallback(async () => {
     if (!settings.webAppUrl) return
+    if (!target) {
+      setSyncError(targetError)
+      return
+    }
     setLoading(true)
     setSyncError(null)
     try {
-      const data = await fetchData(settings.webAppUrl)
+      const data = await fetchData(settings.webAppUrl, target)
       const recalced = recalcEquity(data.trades, settings.initialCapital)
       setPositions(recalced)
       setExecutions(data.executions)
       setWatchlist(data.watchlist)
       setNotes(data.notes)
       persistLocal(recalced, data.executions)
-      saveLocalWatchlist(data.watchlist)
-      saveLocalNotes(data.notes)
+      saveLocalWatchlist(data.watchlist, mode)
+      saveLocalNotes(data.notes, mode)
       setRemoteSettings(data.settings ?? null)
     } catch (err) {
       setSyncError(err instanceof Error ? err.message : 'שגיאה לא ידועה בסנכרון')
     } finally {
       setLoading(false)
     }
-  }, [settings.webAppUrl, settings.initialCapital, persistLocal])
+  }, [settings.webAppUrl, settings.initialCapital, persistLocal, target, targetError, mode])
 
   React.useEffect(() => {
     refresh()
@@ -233,7 +256,7 @@ export function useTradingData(settings: AppSettings) {
       setExecutions(nextExecutions)
       persistLocal(nextPositions, nextExecutions)
 
-      await postAction(settings.webAppUrl, {
+      await postAction(settings.webAppUrl, target!, {
         action: 'open',
         tradeId,
         openDate,
@@ -258,7 +281,7 @@ export function useTradingData(settings: AppSettings) {
       })
       await refresh()
     },
-    [positions, executions, persistLocal, settings.webAppUrl, settings.commissionPerAction, refresh],
+    [positions, executions, persistLocal, settings.webAppUrl, settings.commissionPerAction, refresh, target],
   )
 
   const addShares = React.useCallback(
@@ -298,7 +321,7 @@ export function useTradingData(settings: AppSettings) {
       setExecutions(nextExecutions)
       persistLocal(nextPositions, nextExecutions)
 
-      await postAction(settings.webAppUrl, {
+      await postAction(settings.webAppUrl, target!, {
         action: 'add',
         tradeId: pos.tradeId,
         price: input.price,
@@ -309,7 +332,7 @@ export function useTradingData(settings: AppSettings) {
       })
       await refresh()
     },
-    [positions, executions, persistLocal, settings.webAppUrl, settings.commissionPerAction, refresh],
+    [positions, executions, persistLocal, settings.webAppUrl, settings.commissionPerAction, refresh, target],
   )
 
   const trimPosition = React.useCallback(
@@ -351,7 +374,7 @@ export function useTradingData(settings: AppSettings) {
       setExecutions(nextExecutions)
       persistLocal(nextPositions, nextExecutions)
 
-      await postAction(settings.webAppUrl, {
+      await postAction(settings.webAppUrl, target!, {
         action: 'trim',
         tradeId: pos.tradeId,
         price: input.price,
@@ -362,7 +385,7 @@ export function useTradingData(settings: AppSettings) {
       })
       await refresh()
     },
-    [positions, executions, persistLocal, settings.webAppUrl, settings.commissionPerAction, refresh],
+    [positions, executions, persistLocal, settings.webAppUrl, settings.commissionPerAction, refresh, target],
   )
 
   const closeTrade = React.useCallback(
@@ -415,7 +438,7 @@ export function useTradingData(settings: AppSettings) {
       setExecutions(nextExecutions)
       persistLocal(nextPositions, nextExecutions)
 
-      await postAction(settings.webAppUrl, {
+      await postAction(settings.webAppUrl, target!, {
         action: 'close',
         tradeId: pos.tradeId,
         price: input.price,
@@ -430,7 +453,7 @@ export function useTradingData(settings: AppSettings) {
       })
       await refresh()
     },
-    [positions, executions, persistLocal, settings.webAppUrl, settings.initialCapital, settings.commissionPerAction, refresh],
+    [positions, executions, persistLocal, settings.webAppUrl, settings.initialCapital, settings.commissionPerAction, refresh, target],
   )
 
   const updatePosition = React.useCallback(
@@ -456,7 +479,7 @@ export function useTradingData(settings: AppSettings) {
       setPositions(nextPositions)
       persistLocal(nextPositions, executions)
 
-      await postAction(settings.webAppUrl, {
+      await postAction(settings.webAppUrl, target!, {
         action: 'update',
         tradeId: pos.tradeId,
         pattern: input.pattern,
@@ -472,7 +495,7 @@ export function useTradingData(settings: AppSettings) {
       })
       await refresh()
     },
-    [positions, executions, persistLocal, settings.webAppUrl, refresh],
+    [positions, executions, persistLocal, settings.webAppUrl, refresh, target],
   )
 
   const toggleFavorite = React.useCallback(
@@ -495,15 +518,15 @@ export function useTradingData(settings: AppSettings) {
       setExecutions(nextExecutions)
       persistLocal(nextPositions, nextExecutions)
 
-      await postAction(settings.webAppUrl, { action: 'delete', tradeId })
+      await postAction(settings.webAppUrl, target!, { action: 'delete', tradeId })
       await refresh()
     },
-    [positions, executions, persistLocal, settings.webAppUrl, refresh],
+    [positions, executions, persistLocal, settings.webAppUrl, refresh, target],
   )
 
   const persistWatchlist = React.useCallback((wl: WatchlistItem[]) => {
-    saveLocalWatchlist(wl)
-  }, [])
+    saveLocalWatchlist(wl, mode)
+  }, [mode])
 
   const addToWatchlist = React.useCallback(
     async (input: AddWatchlistInput) => {
@@ -537,7 +560,7 @@ export function useTradingData(settings: AppSettings) {
       setWatchlist(next)
       persistWatchlist(next)
 
-      await postAction(settings.webAppUrl, {
+      await postAction(settings.webAppUrl, target!, {
         action: 'watchlistAdd',
         watchId,
         symbol: newItem.symbol,
@@ -555,7 +578,7 @@ export function useTradingData(settings: AppSettings) {
       })
       await refresh()
     },
-    [watchlist, persistWatchlist, settings.webAppUrl, refresh],
+    [watchlist, persistWatchlist, settings.webAppUrl, refresh, target],
   )
 
   const updateWatchlistItem = React.useCallback(
@@ -588,7 +611,7 @@ export function useTradingData(settings: AppSettings) {
       setWatchlist(next)
       persistWatchlist(next)
 
-      await postAction(settings.webAppUrl, {
+      await postAction(settings.webAppUrl, target!, {
         action: 'watchlistUpdate',
         watchId: input.watchId,
         targetPrice: input.targetPrice,
@@ -605,7 +628,7 @@ export function useTradingData(settings: AppSettings) {
       })
       await refresh()
     },
-    [watchlist, persistWatchlist, settings.webAppUrl, refresh],
+    [watchlist, persistWatchlist, settings.webAppUrl, refresh, target],
   )
 
   const deleteFromWatchlist = React.useCallback(
@@ -614,41 +637,42 @@ export function useTradingData(settings: AppSettings) {
       setWatchlist(next)
       persistWatchlist(next)
 
-      await postAction(settings.webAppUrl, { action: 'watchlistDelete', watchId })
+      await postAction(settings.webAppUrl, target!, { action: 'watchlistDelete', watchId })
       await refresh()
     },
-    [watchlist, persistWatchlist, settings.webAppUrl, refresh],
+    [watchlist, persistWatchlist, settings.webAppUrl, refresh, target],
   )
 
   const saveNotes = React.useCallback(
     async (input: GeneralNotes) => {
       setNotes(input)
-      saveLocalNotes(input)
+      saveLocalNotes(input, mode)
 
-      await postAction(settings.webAppUrl, {
+      await postAction(settings.webAppUrl, target!, {
         action: 'saveNotes',
         generalNotes: input.generalNotes,
         tradingRules: input.tradingRules,
       })
     },
-    [settings.webAppUrl],
+    [settings.webAppUrl, target, mode],
   )
 
   // דוחף הגדרות (הון התחלתי וכד') לצד השרת, כדי שהן יסתנכרנו לכל מכשיר אחר שמחובר לאותו
   // גיליון — במקום להישאר תקועות ב-localStorage המקומי של המכשיר הזה בלבד
   const updateRemoteSettings = React.useCallback(
     async (partial: Partial<RemoteSettings>) => {
-      const result = await postActionWithResult<RemoteSettings>(settings.webAppUrl, {
+      const result = await postActionWithResult<RemoteSettings>(settings.webAppUrl, target!, {
         action: 'updateSettings',
         ...partial,
       })
       setRemoteSettings(result)
       return result
     },
-    [settings.webAppUrl],
+    [settings.webAppUrl, target],
   )
 
   return {
+    target,
     positions,
     executions,
     watchlist,

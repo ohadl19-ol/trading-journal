@@ -18,6 +18,10 @@
   --color-loss-bg: #2b1616;
   --color-warn: #f59e0b;
   --color-warn-bg: #2b2213;
+  /* מצב דמו: צבע שלא משמש לשום דבר אחר באפליקציה, כדי שאי אפשר יהיה לבלבל */
+  --color-demo: #c084fc;
+  --color-demo-strong: #7e22ce;
+  --color-demo-fg: #ffffff;
 }
 
 /* מצב בהיר: אותם שמות משתנים, ערכים הפוכים. מופעל ע"י data-theme="light" על ה-html */
@@ -36,6 +40,9 @@
   --color-loss-bg: #fceaea;
   --color-warn: #d97706;
   --color-warn-bg: #fdf1e0;
+  --color-demo: #7e22ce;
+  --color-demo-strong: #7e22ce;
+  --color-demo-fg: #ffffff;
 }
 
 @layer base {
@@ -87,4 +94,14 @@
   .animate-card-in {
     animation: card-in 0.25s ease-out both;
   }
+}
+
+/* פס "מצב דמו": פסים אלכסוניים כדי שיבלוט גם בהצצה מהירה */
+.demo-stripe {
+  background-color: var(--color-demo-strong);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgb(255 255 255 / 0.12) 0 12px,
+    transparent 12px 24px
+  );
 }

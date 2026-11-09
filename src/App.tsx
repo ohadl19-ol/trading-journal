@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { Calculator, BookOpen, BarChart3, Settings as SettingsIcon, LineChart, BookMarked, Eye, NotebookPen, LayoutDashboard } from 'lucide-react'
+import { Calculator, BookOpen, BarChart3, Settings as SettingsIcon, LineChart, BookMarked, Eye, NotebookPen, LayoutDashboard, GitCompareArrows, FlaskConical } from 'lucide-react'
 import { Tabs } from '@/components/ui/tabs'
 import { ToastProvider } from '@/components/ui/toast'
 import { DashboardPage } from '@/pages/DashboardPage'
@@ -10,6 +10,9 @@ import { SettingsPage } from '@/pages/SettingsPage'
 import { PatternsGuidePage } from '@/pages/PatternsGuidePage'
 import { WatchlistPage } from '@/pages/WatchlistPage'
 import { NotesPage } from '@/pages/NotesPage'
+import { ComparePage } from '@/pages/ComparePage'
+import { loadAccountMode, saveAccountMode, MODE_LABEL, type AccountMode } from '@/lib/accountMode'
+import { cn } from '@/lib/utils'
 import { Dialog } from '@/components/ui/dialog'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { useTradingData } from '@/hooks/useTradingData'
@@ -20,11 +23,46 @@ import { Sparkline } from '@/components/Sparkline'
 import { getStoredTheme, applyTheme, type Theme } from '@/lib/theme'
 import type { AppSettings, DateRangeFilter, WatchlistItem } from '@/types'
 
-type TabValue = 'dashboard' | 'calculator' | 'journal' | 'statistics' | 'watchlist' | 'notes' | 'settings'
+type TabValue = 'dashboard' | 'calculator' | 'journal' | 'statistics' | 'compare' | 'watchlist' | 'notes' | 'settings'
 
-function AppShell() {
-  const [tab, setTab] = React.useState<TabValue>('dashboard')
-  const [settings, setSettings] = React.useState<AppSettings>(() => loadSettings())
+interface AppShellProps {
+  mode: AccountMode
+  onModeChange: (mode: AccountMode) => void
+  tab: TabValue
+  setTab: (tab: TabValue) => void
+}
+
+/** מתג בולט בין החשבון האמיתי לחשבון הדמו */
+function AccountModeSwitch({ mode, onChange }: { mode: AccountMode; onChange: (m: AccountMode) => void }) {
+  return (
+    <div role="radiogroup" aria-label="בחירת חשבון" className="flex shrink-0 gap-1 rounded-xl border border-border bg-surface-2 p-1">
+      {(['real', 'demo'] as const).map((m) => (
+        <button
+          key={m}
+          role="radio"
+          aria-checked={mode === m}
+          data-testid={`mode-${m}`}
+          onClick={() => mode !== m && onChange(m)}
+          className={cn(
+            'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors',
+            mode === m
+              ? m === 'demo'
+                ? 'bg-demo-strong text-demo-fg'
+                : 'bg-accent text-accent-fg'
+              : 'text-text-muted hover:text-text',
+          )}
+        >
+          {m === 'demo' ? <FlaskConical className="h-4 w-4" /> : <LineChart className="h-4 w-4" />}
+          {MODE_LABEL[m]}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function AppShell({ mode, onModeChange, tab, setTab }: AppShellProps) {
+  const isDemo = mode === 'demo'
+  const [settings, setSettings] = React.useState<AppSettings>(() => loadSettings(mode))
   const [filter, setFilter] = React.useState<DateRangeFilter>({ preset: 'month' })
   const [theme, setTheme] = React.useState<Theme>(() => getStoredTheme())
   // תוכנית מסחר שמורה שנבחרה ברשימת המעקב ("בצע כניסה לעסקה") — ממלאת את המחשבון בטאב הבא שייפתח
@@ -35,6 +73,7 @@ function AppShell() {
   React.useEffect(() => applyTheme(theme), [theme])
 
   const {
+    target: sheetTarget,
     positions,
     executions,
     watchlist,
@@ -55,7 +94,7 @@ function AppShell() {
     updateWatchlistItem,
     deleteFromWatchlist,
     saveNotes,
-  } = useTradingData(settings)
+  } = useTradingData(settings, mode)
 
   // "הון התחלתי" וההגדרות הדומות לו מסונכרנות מול השרת כדי שיוגדרו פעם אחת ויחולו על כל
   // מכשיר: אם השרת כבר מכיר ערך לשדה מסוים — הוא גובר על המקומי; אם השרת עוד לא מכיר
@@ -78,7 +117,7 @@ function AppShell() {
           defaultRiskAmount: remoteSettings.defaultRiskAmount ?? prev.defaultRiskAmount,
           commissionPerAction: remoteSettings.commissionPerAction ?? prev.commissionPerAction,
         }
-        saveSettings(merged)
+        saveSettings(merged, mode)
         return merged
       })
     } else {
@@ -104,7 +143,7 @@ function AppShell() {
 
   function handleSaveSettings(next: AppSettings) {
     setSettings(next)
-    saveSettings(next)
+    saveSettings(next, mode)
     if (next.webAppUrl) {
       updateRemoteSettings({
         initialCapital: next.initialCapital,
@@ -116,16 +155,34 @@ function AppShell() {
   }
 
   return (
-    <div className="min-h-screen bg-bg">
+    <div className={cn('min-h-screen bg-bg', isDemo && 'border-x-4 border-demo-strong')}>
+      {isDemo && (
+        <div
+          role="status"
+          data-testid="demo-banner"
+          className="demo-stripe sticky top-0 z-40 px-4 py-2 text-center text-sm font-bold text-demo-fg shadow-md"
+        >
+          <FlaskConical className="ml-1.5 inline h-4 w-4 align-[-2px]" />
+          מצב דמו · כל הנתונים, הכתיבות והסטטיסטיקות כאן הם מגיליון הדמו בלבד
+        </div>
+      )}
       <header className="border-b border-border bg-surface">
-        <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/15 text-accent">
-            <LineChart className="h-5 w-5" />
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 px-4 py-4">
+          <div
+            className={cn(
+              'flex h-10 w-10 items-center justify-center rounded-xl',
+              isDemo ? 'bg-demo-strong text-demo-fg' : 'bg-accent/15 text-accent',
+            )}
+          >
+            {isDemo ? <FlaskConical className="h-5 w-5" /> : <LineChart className="h-5 w-5" />}
           </div>
           <div>
-            <h1 className="text-lg font-bold">יומן מסחר</h1>
+            <h1 className="text-lg font-bold">
+              יומן מסחר{isDemo && <span className="mr-1.5 text-demo"> · דמו</span>}
+            </h1>
             <p className="text-xs text-text-muted">ניהול פוזיציות וסטטיסטיקה מסונכרנים עם Google Sheets</p>
           </div>
+          <AccountModeSwitch mode={mode} onChange={onModeChange} />
           {!settings.webAppUrl && (
             <span className="mr-auto rounded-full bg-warn-bg px-3 py-1 text-xs text-warn">
               יש להגדיר חיבור לגיליון בהגדרות
@@ -184,6 +241,7 @@ function AppShell() {
             { value: 'calculator', label: 'מחשבון', icon: <Calculator className="h-4 w-4" /> },
             { value: 'journal', label: 'יומן עסקאות', icon: <BookOpen className="h-4 w-4" /> },
             { value: 'statistics', label: 'סטטיסטיקה', icon: <BarChart3 className="h-4 w-4" /> },
+            { value: 'compare', label: 'השוואה', icon: <GitCompareArrows className="h-4 w-4" /> },
             { value: 'watchlist', label: 'רשימת מעקב', icon: <Eye className="h-4 w-4" /> },
             { value: 'notes', label: 'הערות וכללים', icon: <NotebookPen className="h-4 w-4" /> },
           ]}
@@ -214,6 +272,7 @@ function AppShell() {
             executions={executions}
             loading={loading}
             webAppUrl={settings.webAppUrl}
+            sheetTarget={sheetTarget}
             onRefresh={refresh}
             onAddShares={addShares}
             onTrim={trimPosition}
@@ -233,6 +292,7 @@ function AppShell() {
             onFilterChange={setFilter}
           />
         )}
+        {tab === 'compare' && <ComparePage webAppUrl={settings.webAppUrl} />}
         {tab === 'watchlist' && (
           <WatchlistPage
             watchlist={watchlist}
@@ -248,6 +308,8 @@ function AppShell() {
         {tab === 'notes' && <NotesPage notes={notes} onSave={saveNotes} />}
         {tab === 'settings' && (
           <SettingsPage
+            mode={mode}
+            sheetTarget={sheetTarget}
             settings={settings}
             onSave={handleSaveSettings}
             positions={positions}
@@ -262,10 +324,20 @@ function AppShell() {
 }
 
 export default function App() {
+  const [mode, setMode] = React.useState<AccountMode>(() => loadAccountMode())
+  const [tab, setTab] = React.useState<TabValue>('dashboard')
+
+  function handleModeChange(next: AccountMode) {
+    saveAccountMode(next)
+    setMode(next)
+  }
+
   return (
     <ErrorBoundary>
       <ToastProvider>
-        <AppShell />
+        {/* key={mode}: מעבר מצב מרכיב מחדש את כל המסך — אין state, מטמון או פעולה בתהליך
+            שעוברים ממצב אחד לשני */}
+        <AppShell key={mode} mode={mode} onModeChange={handleModeChange} tab={tab} setTab={setTab} />
       </ToastProvider>
     </ErrorBoundary>
   )

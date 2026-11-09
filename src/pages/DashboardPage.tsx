@@ -16,7 +16,7 @@ import { StatTile, InlineField } from '@/components/ui/labeled-value'
 import { Dialog } from '@/components/ui/dialog'
 import { EquityCurveChart } from '@/components/EquityCurveChart'
 import { computeEquitySummary, computeEquityCurve, computeStreaks, computeStatistics } from '@/lib/statistics'
-import { formatCurrency, formatPercentage, isStopLossBreached } from '@/lib/calculations'
+import { formatCurrency, formatNumber, formatPercentage, isOpenPosition, isPendingPosition, isStopLossBreached } from '@/lib/calculations'
 import { tradingViewSymbolUrl } from '@/lib/tradingview'
 import type { Position } from '@/types'
 import { cn } from '@/lib/utils'
@@ -57,7 +57,14 @@ export function DashboardPage({ positions, initialCapital, loading, onNavigate }
   const openPositions = React.useMemo(
     () =>
       [...positions]
-        .filter((p) => p.status !== 'סגורה')
+        .filter(isOpenPosition)
+        .sort((a, b) => new Date(b.openDate).getTime() - new Date(a.openDate).getTime()),
+    [positions],
+  )
+  const pendingPositions = React.useMemo(
+    () =>
+      positions
+        .filter(isPendingPosition)
         .sort((a, b) => new Date(b.openDate).getTime() - new Date(a.openDate).getTime()),
     [positions],
   )
@@ -216,6 +223,34 @@ export function DashboardPage({ positions, initialCapital, loading, onNavigate }
         </CardContent>
       </Card>
 
+      {pendingPositions.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>ממתינות לכניסה ({pendingPositions.length})</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <p className="text-xs text-text-muted">פקודות שעוד לא בוצעו. לא נכללות בשווי, ברווח/הפסד ובסטטיסטיקה.</p>
+            {pendingPositions.map((p) => (
+              <button
+                key={p.tradeId}
+                onClick={() => setDetailPosition(p)}
+                className="flex w-full items-center justify-between rounded-lg border border-dashed border-border bg-surface-2 px-3 py-2 text-right hover:bg-surface"
+                data-testid="pending-row"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-text">{p.symbol}</span>
+                  <Badge variant="pending">{p.status}</Badge>
+                  <span className="text-xs text-text-muted">
+                    {formatNumber(p.originalShares)} מניות · כניסה ${formatCurrency(p.avgEntryPrice)} · סטופ ${formatCurrency(p.stopLoss)}
+                  </span>
+                </div>
+                <span className="text-xs text-text-muted">סיכון ${formatCurrency(p.riskAmount)}</span>
+              </button>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       {!showSkeleton && (
         <Card>
           <CardContent className="flex flex-wrap items-center gap-x-6 gap-y-2 p-4 text-sm text-text-muted">
@@ -232,7 +267,12 @@ export function DashboardPage({ positions, initialCapital, loading, onNavigate }
       )}
 
       {detailPosition && (
-        <Dialog open={!!detailPosition} onClose={() => setDetailPosition(null)} title={detailPosition.symbol} description="פרטי הפוזיציה הפתוחה">
+        <Dialog
+          open={!!detailPosition}
+          onClose={() => setDetailPosition(null)}
+          title={detailPosition.symbol}
+          description={isPendingPosition(detailPosition) ? 'ממתינה לכניסה — פקודה שעוד לא בוצעה, ללא רווח/הפסד' : 'פרטי הפוזיציה הפתוחה'}
+        >
           <div className="space-y-4">
             {detailPosition.setupReason && (
               <div>
@@ -244,7 +284,7 @@ export function DashboardPage({ positions, initialCapital, loading, onNavigate }
               {detailPosition.currentPrice != null && (
                 <InlineField label="מחיר נוכחי" value={`$${formatCurrency(detailPosition.currentPrice)}`} />
               )}
-              {detailPosition.currentPrice != null && (
+              {detailPosition.currentPrice != null && isOpenPosition(detailPosition) && (
                 <InlineField
                   label="רווח/הפסד לא ממומש"
                   value={(() => {
@@ -259,7 +299,10 @@ export function DashboardPage({ positions, initialCapital, loading, onNavigate }
                 />
               )}
               <InlineField label="מחיר כניסה" value={`$${formatCurrency(detailPosition.avgEntryPrice)}`} />
-              <InlineField label="כמות מניות" value={String(detailPosition.currentShares)} />
+              <InlineField
+                label={isPendingPosition(detailPosition) ? 'כמות מתוכננת' : 'כמות מניות'}
+                value={String(isPendingPosition(detailPosition) ? detailPosition.originalShares : detailPosition.currentShares)}
+              />
               <InlineField label="סטופ לוס" value={`$${formatCurrency(detailPosition.stopLoss)}`} />
               <InlineField label="סכום בסיכון" value={`$${formatCurrency(detailPosition.riskAmount)}`} />
               {detailPosition.targetPrice != null && (

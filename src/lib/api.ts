@@ -1,4 +1,5 @@
 import type { Execution, Position, WatchlistItem } from '@/types'
+import { assertValidTarget, hasDemoTag, SheetGuardError, type SheetTarget } from '@/lib/accountMode'
 
 export interface GeneralNotes {
   generalNotes: string
@@ -52,23 +53,46 @@ export interface FetchChartImagesResponse {
   limit: number
 }
 
+// יעדים (Web App + גיליון) שהשרת כבר אישר בקריאה שהוא באמת מגיש. כתיבה מותרת רק אליהם:
+// שרת ישן שמתעלם מ-sheetId היה כותב תמיד ליומן האמיתי — כך זה לא יכול לקרות.
+const verifiedTargets = new Set<string>()
+const targetKey = (webAppUrl: string, t: SheetTarget) => `${webAppUrl}|${t.mode}|${t.sheetId}`
+
+/** לשימוש בבדיקות בלבד */
+export function __resetVerifiedTargets() {
+  verifiedTargets.clear()
+}
+
 /**
  * שולח פעולה (POST) אל ה-Google Apps Script Web App.
  * משתמשים ב-Content-Type: text/plain כדי להימנע מ-CORS preflight,
  * ה-Apps Script קורא את e.postData.contents ומפענח JSON בעצמו.
  */
-export async function postAction(webAppUrl: string, payload: ActionPayload): Promise<void> {
-  await postActionWithResult(webAppUrl, payload)
+export async function postAction(webAppUrl: string, target: SheetTarget, payload: ActionPayload): Promise<void> {
+  await postActionWithResult(webAppUrl, target, payload)
 }
 
 /** כמו postAction, אבל מחזיר גם את ה-result שהשרת שלח בחזרה (לפעולות שמחזירות נתונים) */
-export async function postActionWithResult<T = unknown>(webAppUrl: string, payload: ActionPayload): Promise<T> {
+export async function postActionWithResult<T = unknown>(
+  webAppUrl: string,
+  target: SheetTarget,
+  payload: ActionPayload,
+): Promise<T> {
   if (!webAppUrl) throw new Error('לא הוגדרה כתובת Web App. עבור להגדרות והזן כתובת.')
+  const t = assertValidTarget(target)
+  if (t.mode === 'real' && hasDemoTag((payload as { tags?: unknown }).tags)) {
+    throw new SheetGuardError('נחסם: ניסיון לכתוב עסקה עם תגית "דמו" ליומן האמיתי.')
+  }
+  if (!verifiedTargets.has(targetKey(webAppUrl, t))) {
+    throw new SheetGuardError(
+      'השרת עוד לא אישר שהוא מחובר לגיליון הנכון, ולכן הכתיבה נחסמה. רענן את הנתונים, ואם זה חוזר — פרוס את הגרסה החדשה של הסקריפט.',
+    )
+  }
 
   const res = await fetch(webAppUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, mode: t.mode, sheetId: t.sheetId }),
   })
 
   if (!res.ok) {
@@ -85,20 +109,37 @@ export async function postActionWithResult<T = unknown>(webAppUrl: string, paylo
 /** מושך תמונות צ'ארט אמיתיות (לא רק קישורים) עבור עסקאות עם קישור צ'ארט, דרך ה-Backend */
 export async function fetchChartImages(
   webAppUrl: string,
+  target: SheetTarget,
   charts: { tradeId: string; symbol: string; chartUrl: string }[],
 ): Promise<FetchChartImagesResponse> {
-  return postActionWithResult<FetchChartImagesResponse>(webAppUrl, { action: 'fetchChartImages', charts })
+  return postActionWithResult<FetchChartImagesResponse>(webAppUrl, target, { action: 'fetchChartImages', charts })
 }
 
-/** משיכת כל הנתונים (GET) מה-Web App */
-export async function fetchData(webAppUrl: string): Promise<GetDataResponse> {
+/** משיכת כל הנתונים (GET) מה-Web App, מהגיליון של היעד בלבד */
+export async function fetchData(webAppUrl: string, target: SheetTarget): Promise<GetDataResponse> {
   if (!webAppUrl) throw new Error('לא הוגדרה כתובת Web App. עבור להגדרות והזן כתובת.')
+  const t = assertValidTarget(target)
 
-  const res = await fetch(webAppUrl, { method: 'GET' })
+  const url = new URL(webAppUrl)
+  url.searchParams.set('mode', t.mode)
+  url.searchParams.set('sheetId', t.sheetId)
+  const res = await fetch(url.toString(), { method: 'GET' })
   if (!res.ok) {
     throw new Error(`שגיאה במשיכת נתונים מהשרת (${res.status})`)
   }
   const data = await res.json()
+  if (data && data.status === 'error') {
+    throw new Error(data.message || 'השרת החזיר שגיאה')
+  }
+  // השרת חייב להחזיר במפורש את הגיליון שממנו קרא. שרת ישן (שלא מכיר מצב דמו) לא מחזיר —
+  // ואז אסור להציג את הנתונים, כי הם מהגיליון האמיתי ולא מזה שביקשנו
+  if (data?.sheetId !== t.sheetId || data?.mode !== t.mode) {
+    verifiedTargets.delete(targetKey(webAppUrl, t))
+    throw new SheetGuardError(
+      'השרת לא אישר שהנתונים הגיעו מהגיליון המבוקש (ייתכן שהסקריפט עוד לא עודכן לגרסה שתומכת במצב דמו). לא מוצג ולא נכתב כלום.',
+    )
+  }
+  verifiedTargets.add(targetKey(webAppUrl, t))
   return {
     trades: data.trades ?? [],
     executions: data.executions ?? [],
@@ -114,9 +155,9 @@ export async function fetchData(webAppUrl: string): Promise<GetDataResponse> {
 }
 
 /** בדיקת חיבור פשוטה */
-export async function testConnection(webAppUrl: string): Promise<boolean> {
+export async function testConnection(webAppUrl: string, target: SheetTarget): Promise<boolean> {
   try {
-    await fetchData(webAppUrl)
+    await fetchData(webAppUrl, target)
     return true
   } catch {
     return false

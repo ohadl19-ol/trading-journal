@@ -1,4 +1,4 @@
-import type { CalculatorResult, Position } from '@/types'
+import { PENDING_STATUS, type CalculatorResult, type Position } from '@/types'
 
 export interface CalculatorInput {
   riskAmount: number
@@ -74,9 +74,19 @@ export function riskAmountForExactShares(entryPrice: number, stopLoss: number, s
   return Math.round(shares * riskPerShare * 100) / 100 + 0.01
 }
 
+/** עסקה שממתינה לכניסה — פקודה שעוד לא בוצעה. לא נחשבת פתוחה ולא סגורה, ואין לה רווח/הפסד */
+export function isPendingPosition(position: Pick<Position, 'status'>): boolean {
+  return position.status === PENDING_STATUS
+}
+
+/** פוזיציה פתוחה בפועל (יש בה מניות בשוק): לא סגורה ולא ממתינה לכניסה */
+export function isOpenPosition(position: Pick<Position, 'status'>): boolean {
+  return position.status !== 'סגורה' && position.status !== PENDING_STATUS
+}
+
 /** האם המחיר הנוכחי של פוזיציה פתוחה חצה (ירד עד/מתחת ל)- הסטופ לוס שלה */
 export function isStopLossBreached(position: Position): boolean {
-  return position.status !== 'סגורה' && position.currentPrice != null && position.currentPrice <= position.stopLoss
+  return isOpenPosition(position) && position.currentPrice != null && position.currentPrice <= position.stopLoss
 }
 
 export function formatCurrency(value: number | null | undefined, digits = 2): string {

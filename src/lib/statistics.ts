@@ -1,4 +1,5 @@
 import type { Position } from '@/types'
+import { isOpenPosition } from '@/lib/calculations'
 
 export interface PatternBreakdown {
   name: string
@@ -23,7 +24,7 @@ export interface EquitySummary {
  */
 export function computeEquitySummary(allPositions: Position[], initialCapital: number): EquitySummary {
   const closedTrades = allPositions.filter((p) => p.status === 'סגורה')
-  const openTrades = allPositions.filter((p) => p.status !== 'סגורה')
+  const openTrades = allPositions.filter(isOpenPosition)
 
   const totalRealizedPnl = closedTrades.reduce((sum, p) => sum + p.realizedPnl, 0)
 
@@ -75,7 +76,7 @@ export function computeEquitySummaryForRange(
   const periodStartCapital = initialCapital + closedBeforeRange.reduce((sum, p) => sum + p.realizedPnl, 0)
 
   const closedInPeriod = filteredPositions.filter((p) => p.status === 'סגורה')
-  const openInPeriod = filteredPositions.filter((p) => p.status !== 'סגורה')
+  const openInPeriod = filteredPositions.filter(isOpenPosition)
 
   const totalRealizedPnl = closedInPeriod.reduce((sum, p) => sum + p.realizedPnl, 0)
 
