@@ -44,18 +44,95 @@ var EXECUTIONS_HEADERS = [
 ];
 
 var DEFAULT_INITIAL_CAPITAL = 4455;
+var DEFAULT_DEMO_INITIAL_CAPITAL = 3000;
+
+// ==================== בחירת גיליון: אמיתי / דמו ====================
+// הסקריפט משרת שני גיליונות נפרדים. כל בקשה מהאפליקציה חייבת לציין במפורש mode + sheetId,
+// והשרת פותח רק את הגיליון שהמזהה שלו תואם בדיוק ל-mode. אין שום נפילה אוטומטית
+// ל"גיליון הפעיל" או לגיליון השני — בקשה לא תקינה נדחית לפני שנוגעים בגיליון כלשהו.
+var SHEET_IDS_ = {
+  real: '1szzRyKfEZ-4CCgyWsr4NDzLJK_G-kDVpzB62EwYvA30',
+  demo: '1GEaDNScc-dqNFi4YyuuB16juPBE-y3XXon1Wq7MpPBs',
+};
+var DEMO_TAG_ = 'דמו';
+
+// היעד של הבקשה הנוכחית (נקבע פעם אחת בתחילת doGet/doPost ע"י bindTarget_)
+var CURRENT_TARGET_ = null;
+var CURRENT_SS_ = null;
+
+function validateSheetConfig_() {
+  var real = String(SHEET_IDS_.real || '').trim();
+  var demo = String(SHEET_IDS_.demo || '').trim();
+  if (!real) throw new Error('הגדרת שרת שגויה: מזהה הגיליון האמיתי חסר. לא בוצעה שום פעולה.');
+  if (!demo) throw new Error('הגדרת שרת שגויה: מזהה גיליון הדמו חסר. לא בוצעה שום פעולה.');
+  if (real === demo) throw new Error('הגדרת שרת שגויה: מזהה הגיליון האמיתי ומזהה גיליון הדמו זהים. לא בוצעה שום פעולה.');
+}
+
+/**
+ * קובע לאיזה גיליון הבקשה הזו פונה. זורק שגיאה (בלי לפתוח שום גיליון) אם:
+ * mode חסר/לא מוכר, sheetId חסר, או ש-sheetId לא תואם בדיוק למזהה של ה-mode.
+ */
+function bindTarget_(mode, sheetId) {
+  CURRENT_TARGET_ = null;
+  CURRENT_SS_ = null;
+  validateSheetConfig_();
+  if (mode !== 'real' && mode !== 'demo') {
+    throw new Error('חסר מצב חשבון (real/demo) בבקשה. לא בוצעה שום פעולה.');
+  }
+  if (!sheetId) {
+    throw new Error('חסר מזהה גיליון בבקשה. לא בוצעה שום פעולה.');
+  }
+  if (sheetId !== SHEET_IDS_[mode]) {
+    throw new Error('מזהה הגיליון לא תואם למצב "' + (mode === 'demo' ? 'דמו' : 'אמיתי') + '". הבקשה נחסמה ולא בוצעה שום פעולה.');
+  }
+  CURRENT_TARGET_ = { mode: mode, sheetId: sheetId };
+}
+
+/** הגיליון של הבקשה הנוכחית. אין ברירת מחדל: בלי bindTarget_ קודם — שגיאה. */
+function getSs_() {
+  if (!CURRENT_TARGET_) throw new Error('לא נבחר גיליון לבקשה. לא בוצעה שום פעולה.');
+  if (!CURRENT_SS_) CURRENT_SS_ = SpreadsheetApp.openById(CURRENT_TARGET_.sheetId);
+  return CURRENT_SS_;
+}
+
+function isDemo_() {
+  return !!CURRENT_TARGET_ && CURRENT_TARGET_.mode === 'demo';
+}
+
+/** מפתח הגדרה ב-ScriptProperties: היומן האמיתי שומר על המפתחות הקיימים, הדמו מקבל קידומת */
+function propKey_(key) {
+  return isDemo_() ? 'demo_' + key : key;
+}
+
+function hasDemoTag_(tags) {
+  if (tags === undefined || tags === null) return false;
+  var list = Array.isArray(tags) ? tags : String(tags).split(',');
+  return list.some(function (t) { return String(t).trim() === DEMO_TAG_; });
+}
 
 // ==================== נקודות כניסה ====================
 
 function doGet(e) {
-  checkWatchlistAlerts_(); // בדיקה הזדמנותית בכל טעינה - שולחת מייל אם מניה חצתה יעד
-  checkStopLossAlerts_(); // בדיקה הזדמנותית בכל טעינה - שולחת מייל אם פוזיציה פתוחה חצתה סטופ
-
   var params = (e && e.parameter) || {};
   var scope = params.scope;
   var payload;
 
   try {
+    if (params.sheetId || params.mode) {
+      bindTarget_(params.mode, params.sheetId);
+    } else if (scope) {
+      // תאימות לאחור: "views" לקריאה בלבד לכלים חיצוניים (Custom GPT) שלא שולחים sheetId —
+      // ממשיכים לקרוא מהיומן האמיתי כמו קודם. האפליקציה עצמה תמיד שולחת sheetId.
+      bindTarget_('real', SHEET_IDS_.real);
+    } else {
+      throw new Error('חסר מזהה גיליון בבקשה. עדכן את האפליקציה לגרסה האחרונה.');
+    }
+
+    if (!isDemo_()) {
+      checkWatchlistAlerts_(); // בדיקה הזדמנותית בכל טעינה - שולחת מייל אם מניה חצתה יעד
+      checkStopLossAlerts_(); // בדיקה הזדמנותית בכל טעינה - שולחת מייל אם פוזיציה פתוחה חצתה סטופ
+    }
+
     if (scope === 'summary') {
       // תקציר קומפקטי (לשימוש כלים חיצוניים כמו Custom GPT Actions, שיש להם מגבלת גודל תשובה)
       payload = buildSummaryView_();
@@ -70,6 +147,8 @@ function doGet(e) {
     } else {
       // ברירת מחדל: כל הנתונים המלאים — משמש את האפליקציה עצמה, לא לשנות!
       payload = {
+        mode: CURRENT_TARGET_.mode,
+        sheetId: CURRENT_TARGET_.sheetId,
         trades: readPositions_(),
         executions: readExecutions_(),
         watchlist: readWatchlist_(),
@@ -241,10 +320,17 @@ function doPost(e) {
     var body = JSON.parse(e.postData.contents);
     var isWrite = !!WRITE_ACTIONS_[body.action];
 
+    // לפני כל דבר אחר: לאיזה גיליון הבקשה פונה. בקשה בלי mode+sheetId תואמים נדחית כאן.
+    bindTarget_(body.mode, body.sheetId);
+    // הגנה כפולה: תגית "דמו" לא נכתבת לעולם ליומן האמיתי
+    if (isWrite && !isDemo_() && hasDemoTag_(body.tags)) {
+      throw new Error('נחסם: ניסיון לכתוב עסקה עם תגית "דמו" ליומן האמיתי. לא בוצעה שום פעולה.');
+    }
+
     // idempotency: אם כבר ביצענו בקשה עם אותו idempotencyKey (למשל retry כפול בטעות),
     // מחזירים את אותה תוצאה בלי לבצע את הפעולה פעם נוספת
     var cache = isWrite && body.idempotencyKey ? CacheService.getScriptCache() : null;
-    var cacheKey = cache ? 'idem_' + body.action + '_' + body.idempotencyKey : null;
+    var cacheKey = cache ? 'idem_' + CURRENT_TARGET_.mode + '_' + body.action + '_' + body.idempotencyKey : null;
     if (cacheKey) {
       var cached = cache.get(cacheKey);
       if (cached !== null) {
@@ -919,7 +1005,7 @@ function checkStopLossAlerts_() {
  * נוצרת אוטומטית בפעם הראשונה שנשמר משהו.
  */
 function getNotesSheet_() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = getSs_();
   var sheet = ss.getSheetByName(NOTES_SHEET_NAME);
   if (!sheet) {
     sheet = ss.insertSheet(NOTES_SHEET_NAME);
@@ -1044,8 +1130,8 @@ function recalcEquity_() {
 
 function getInitialCapital_() {
   var props = PropertiesService.getScriptProperties();
-  var val = props.getProperty('initialCapital');
-  return val ? Number(val) : DEFAULT_INITIAL_CAPITAL;
+  var val = props.getProperty(propKey_('initialCapital'));
+  return val ? Number(val) : (isDemo_() ? DEFAULT_DEMO_INITIAL_CAPITAL : DEFAULT_INITIAL_CAPITAL);
 }
 
 /**
@@ -1057,7 +1143,7 @@ function getInitialCapital_() {
 function getAppSettings_() {
   var props = PropertiesService.getScriptProperties();
   function readNum(key) {
-    var val = props.getProperty(key);
+    var val = props.getProperty(propKey_(key));
     return val === null ? null : Number(val);
   }
   return {
@@ -1073,7 +1159,7 @@ function handleUpdateSettings_(body) {
   var keys = ['initialCapital', 'defaultAccountBalance', 'defaultRiskAmount', 'commissionPerAction'];
   keys.forEach(function (key) {
     if (body[key] !== undefined && body[key] !== null) {
-      props.setProperty(key, String(body[key]));
+      props.setProperty(propKey_(key), String(body[key]));
     }
   });
   // "הון התחלתי" משפיע על כל עמודת השווי המצטבר (equity) בגיליון הפוזיציות
@@ -1362,12 +1448,12 @@ function getExecutionsSheet_() {
 }
 
 function getStatsSheet_() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = getSs_();
   return ss.getSheetByName(STATS_SHEET_NAME);
 }
 
 function ensureSheetWithHeaders_(name, headers) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = getSs_();
   var sheet = ss.getSheetByName(name);
   if (!sheet) {
     sheet = ss.insertSheet(name);
@@ -1458,7 +1544,7 @@ function addExecutionRow_(exec) {
  * ומעדכן את טווח הנוסחאות אם נוספו שורות חדשות ל"פוזיציות".
  */
 function ensureStatsSheet_() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = getSs_();
   var sheet = ss.getSheetByName(STATS_SHEET_NAME);
   var isNew = false;
   if (!sheet) {
@@ -1539,6 +1625,8 @@ function ensureStatsSheet_() {
 
 /** קריאה ידנית לרענון הגדרות הון התחלתי מ-Script Properties, אופציונלי */
 function setInitialCapital(amount) {
+  // הרצה ידנית מהעורך פועלת על היומן האמיתי בלבד (לדמו — דרך ההגדרות באפליקציה)
+  bindTarget_('real', SHEET_IDS_.real);
   PropertiesService.getScriptProperties().setProperty('initialCapital', String(amount));
   ensureStatsSheet_();
   recalcEquity_();

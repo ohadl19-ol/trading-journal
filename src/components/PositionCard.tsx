@@ -9,12 +9,14 @@ import {
   formatCurrency,
   formatNumber,
   formatPercentage,
+  isOpenPosition,
+  isPendingPosition,
   isStopLossBreached,
   percentageColorClass,
   rrColorClass,
 } from '@/lib/calculations'
 import { tradingViewSymbolUrl } from '@/lib/tradingview'
-import type { Execution, Position } from '@/types'
+import { PENDING_STATUS, type Execution, type Position } from '@/types'
 import { cn } from '@/lib/utils'
 
 interface PositionCardProps {
@@ -33,6 +35,7 @@ const statusVariant = {
   פתוחה: 'accent',
   'פתוחה חלקית': 'warn',
   סגורה: 'default',
+  [PENDING_STATUS]: 'pending',
 } as const
 
 export function PositionCard({
@@ -47,7 +50,8 @@ export function PositionCard({
   onToggleFavorite,
 }: PositionCardProps) {
   const [expanded, setExpanded] = React.useState(false)
-  const isOpen = position.status !== 'סגורה'
+  const isOpen = isOpenPosition(position)
+  const isPending = isPendingPosition(position)
   const pnlPositive = position.realizedPnl >= 0
   const unrealizedPnl =
     isOpen && position.currentPrice != null
@@ -125,7 +129,7 @@ export function PositionCard({
                   <TrendingUp className="h-3 w-3" />
                   גרף חי
                 </a>
-                <Badge variant={statusVariant[position.status]}>{position.status}</Badge>
+                <Badge variant={statusVariant[position.status] ?? 'default'}>{position.status}</Badge>
                 {position.winLoss && (
                   <Badge variant={position.winLoss === 'WIN' ? 'win' : 'loss'}>
                     {position.winLoss}
@@ -142,7 +146,14 @@ export function PositionCard({
           </div>
 
           <div className="text-right sm:text-left">
-            {unrealizedPnl !== null ? (
+            {isPending ? (
+              <>
+                <div className="text-base font-semibold text-text-muted">ממתינה לכניסה</div>
+                <div className="text-xs text-text-muted">
+                  פקודה שעוד לא בוצעה · כניסה ב-${formatCurrency(position.avgEntryPrice)} · ללא רווח/הפסד
+                </div>
+              </>
+            ) : unrealizedPnl !== null ? (
               <>
                 <div
                   className={cn(
@@ -173,7 +184,11 @@ export function PositionCard({
 
         <div className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4 lg:grid-cols-6">
           <InlineField label="מחיר ממוצע" value={`$${formatCurrency(position.avgEntryPrice)}`} />
-          <InlineField label="כמות נוכחית" value={formatNumber(position.currentShares)} />
+          {isPending ? (
+            <InlineField label="כמות מתוכננת" value={formatNumber(position.originalShares)} />
+          ) : (
+            <InlineField label="כמות נוכחית" value={formatNumber(position.currentShares)} />
+          )}
           <InlineField
             label="סטופ"
             value={`$${formatCurrency(position.stopLoss)}${stopPct !== null ? ` (-${formatPercentage(stopPct)})` : ''}`}

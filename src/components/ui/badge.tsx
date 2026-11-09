@@ -12,6 +12,7 @@ const badgeVariants = cva(
         loss: 'bg-loss-bg text-loss border border-loss/30',
         warn: 'bg-warn-bg text-warn border border-warn/30',
         accent: 'bg-accent/15 text-accent border border-accent/30',
+        pending: 'bg-surface-2 text-text-muted border border-dashed border-text-muted/60',
       },
     },
     defaultVariants: { variant: 'default' },

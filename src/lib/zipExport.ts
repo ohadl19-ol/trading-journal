@@ -1,6 +1,7 @@
 import JSZip from 'jszip'
 import type { Execution, Position } from '@/types'
 import { buildExecutionsCsv, buildPositionsCsv } from '@/lib/csvExport'
+import type { SheetTarget } from '@/lib/accountMode'
 import { fetchChartImages, type ChartImageResult } from '@/lib/api'
 
 export interface ZipExportResult {
@@ -28,6 +29,7 @@ function sanitizeFilename(name: string): string {
  */
 export async function exportFilteredZip(
   webAppUrl: string,
+  target: SheetTarget | null,
   filteredPositions: Position[],
   allExecutions: Execution[],
   onProgress?: (message: string) => void,
@@ -51,7 +53,7 @@ export async function exportFilteredZip(
 
   if (withCharts.length > 0) {
     onProgress?.(`מוריד ${withCharts.length} תמונות צ'ארט...`)
-    const response = await fetchChartImages(webAppUrl, withCharts)
+    const response = await fetchChartImages(webAppUrl, target!, withCharts)
     truncated = response.truncated
 
     const imagesFolder = zip.folder('צ׳ארטים')

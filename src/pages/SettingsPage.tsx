@@ -6,11 +6,14 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 import { testConnection } from '@/lib/api'
+import { MODE_LABEL, type AccountMode, type SheetTarget } from '@/lib/accountMode'
 import { exportBackupCsv } from '@/lib/csvExport'
 import type { Theme } from '@/lib/theme'
 import type { AppSettings, Execution, Position } from '@/types'
 
 interface SettingsPageProps {
+  mode: AccountMode
+  sheetTarget: SheetTarget | null
   settings: AppSettings
   onSave: (settings: AppSettings) => void
   positions: Position[]
@@ -19,7 +22,7 @@ interface SettingsPageProps {
   onThemeChange: (theme: Theme) => void
 }
 
-export function SettingsPage({ settings, onSave, positions, executions, theme, onThemeChange }: SettingsPageProps) {
+export function SettingsPage({ mode, sheetTarget, settings, onSave, positions, executions, theme, onThemeChange }: SettingsPageProps) {
   const { toast } = useToast()
   const [form, setForm] = React.useState<AppSettings>(settings)
   const [testing, setTesting] = React.useState(false)
@@ -43,7 +46,7 @@ export function SettingsPage({ settings, onSave, positions, executions, theme, o
   async function handleTest() {
     setTesting(true)
     try {
-      const ok = await testConnection(form.webAppUrl)
+      const ok = sheetTarget ? await testConnection(form.webAppUrl, sheetTarget) : false
       toast(ok ? 'החיבור תקין ✅' : 'החיבור נכשל, בדוק את הכתובת', ok ? 'success' : 'error')
     } finally {
       setTesting(false)
@@ -111,7 +114,12 @@ export function SettingsPage({ settings, onSave, positions, executions, theme, o
 
       <Card>
         <CardHeader>
-          <CardTitle>ערכי ברירת מחדל</CardTitle>
+          <CardTitle>ערכי ברירת מחדל · {MODE_LABEL[mode]}</CardTitle>
+          <CardDescription>
+            {mode === 'demo'
+              ? 'הערכים כאן חלים על חשבון הדמו בלבד. ברירת המחדל להון ההתחלתי היא 3,000$.'
+              : 'הערכים כאן חלים על החשבון האמיתי בלבד. לחשבון הדמו יש ערכים נפרדים.'}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="rounded-lg bg-accent/10 px-3 py-2 text-xs text-accent">
