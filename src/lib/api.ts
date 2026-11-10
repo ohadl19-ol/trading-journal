@@ -163,3 +163,31 @@ export async function testConnection(webAppUrl: string, target: SheetTarget): Pr
     return false
   }
 }
+
+export interface QuotesResponse {
+  quotes: Record<string, Omit<import('@/lib/livePrice').LiveQuote, 'fetchedAt'>>
+  errors: Record<string, string>
+  fetchedAt: string
+}
+
+/**
+ * מחירים עדכניים לסימולים (קריאה בלבד). השרת לא נוגע באף גיליון בבקשה הזו, והמחירים
+ * מוצגים באפליקציה בלבד — לא נכתבים לגיליון.
+ */
+export async function fetchQuotes(webAppUrl: string, target: SheetTarget, symbols: string[]): Promise<QuotesResponse> {
+  if (!webAppUrl) throw new Error('לא הוגדרה כתובת Web App.')
+  const t = assertValidTarget(target)
+  const url = new URL(webAppUrl)
+  url.searchParams.set('mode', t.mode)
+  url.searchParams.set('sheetId', t.sheetId)
+  url.searchParams.set('scope', 'quotes')
+  url.searchParams.set('symbols', symbols.join(','))
+  const res = await fetch(url.toString(), { method: 'GET' })
+  if (!res.ok) throw new Error(`שגיאה במשיכת מחירים (${res.status})`)
+  const data = await res.json()
+  if (data?.status === 'error') throw new Error(data.message || 'שגיאה במשיכת מחירים')
+  if (!data || typeof data.quotes !== 'object') {
+    throw new Error('השרת לא מחזיר מחירים חיים (ייתכן שהסקריפט עוד לא עודכן לגרסה האחרונה)')
+  }
+  return { quotes: data.quotes ?? {}, errors: data.errors ?? {}, fetchedAt: data.fetchedAt ?? new Date().toISOString() }
+}

@@ -13,6 +13,8 @@ import { NotesPage } from '@/pages/NotesPage'
 import { ComparePage } from '@/pages/ComparePage'
 import { loadAccountMode, saveAccountMode, MODE_LABEL, type AccountMode } from '@/lib/accountMode'
 import { cn } from '@/lib/utils'
+import { LivePricesContext, useLivePrices } from '@/hooks/useLivePrices'
+import { isOpenPosition } from '@/lib/calculations'
 import { Dialog } from '@/components/ui/dialog'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { useTradingData } from '@/hooks/useTradingData'
@@ -131,10 +133,17 @@ function AppShell({ mode, onModeChange, tab, setTab }: AppShellProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remoteSettings])
 
-  const currentEquity = React.useMemo(
-    () => computeEquitySummary(positions, settings.initialCapital).currentEquity,
-    [positions, settings.initialCapital],
-  )
+  // מחירים חיים רק לפוזיציות "פתוחה" / "פתוחה חלקית" של המצב הנוכחי. מוצגים בלבד — לא נכתבים לגיליון.
+  const openSymbols = React.useMemo(() => positions.filter(isOpenPosition).map((p) => p.symbol), [positions])
+  const livePrices = useLivePrices(settings.webAppUrl, sheetTarget, openSymbols)
+
+  const currentEquity = React.useMemo(() => {
+    const withLive = positions.map((p) => {
+      const q = isOpenPosition(p) ? livePrices.quotes[p.symbol.toUpperCase()] : undefined
+      return q ? { ...p, currentPrice: q.price } : p
+    })
+    return computeEquitySummary(withLive, settings.initialCapital).currentEquity
+  }, [positions, settings.initialCapital, livePrices.quotes])
   // נקודות אחרונות בעקומת ההון, למגמת שווי זעירה בהדר (לא תחליף לעקומה המלאה בעמוד סטטיסטיקה)
   const equitySparkline = React.useMemo(() => {
     const curve = computeEquityCurve(positions, settings.initialCapital)
@@ -155,6 +164,7 @@ function AppShell({ mode, onModeChange, tab, setTab }: AppShellProps) {
   }
 
   return (
+    <LivePricesContext.Provider value={livePrices}>
     <div className={cn('min-h-screen bg-bg', isDemo && 'border-x-4 border-demo-strong')}>
       {isDemo && (
         <div
@@ -321,6 +331,7 @@ function AppShell({ mode, onModeChange, tab, setTab }: AppShellProps) {
         )}
       </main>
     </div>
+    </LivePricesContext.Provider>
   )
 }
 

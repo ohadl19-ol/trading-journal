@@ -13,7 +13,7 @@ import { filterPositionsByDate, getAvailableYears } from '@/lib/dateFilter'
 import { exportFilteredCsv } from '@/lib/csvExport'
 import { exportFilteredZip } from '@/lib/zipExport'
 import type { SheetTarget } from '@/lib/accountMode'
-import { ALL_TRADE_TAGS, PATTERN_OPTIONS, PENDING_STATUS, type DateRangeFilter, type Execution, type Position } from '@/types'
+import { ALL_STATUSES, ALL_TRADE_TAGS, CANCELED_STATUS, PATTERN_OPTIONS, type DateRangeFilter, type Execution, type Position } from '@/types'
 
 type SortMode = 'date-desc' | 'date-asc' | 'pnl-desc' | 'pnl-asc'
 
@@ -90,7 +90,9 @@ export function JournalPage({
         const haystack = `${p.symbol} ${p.setupReason ?? ''} ${p.notes ?? ''} ${(p.tags ?? []).join(' ')} ${p.tradeReview ?? ''}`.toLowerCase()
         if (!haystack.includes(q)) return false
       }
-      if (statusFilter && p.status !== statusFilter) return false
+      // ברירת מחדל: כל הסטאטוסים חוץ מ"בוטלה"; "הכול" כולל גם בוטלות
+      if (statusFilter === '' && p.status === CANCELED_STATUS) return false
+      if (statusFilter && statusFilter !== 'all' && p.status !== statusFilter) return false
       if (outcomeFilter && p.winLoss !== outcomeFilter) return false
       if (patternFilter && p.pattern !== patternFilter) return false
       if (tagFilter && !(p.tags ?? []).includes(tagFilter)) return false
@@ -208,11 +210,13 @@ export function JournalPage({
             onChange={(e) => setSearchText(e.target.value)}
           />
           <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-            <option value="">כל הסטטוסים</option>
-            <option value="פתוחה">פתוחה</option>
-            <option value="פתוחה חלקית">פתוחה חלקית</option>
-            <option value="סגורה">סגורה</option>
-            <option value={PENDING_STATUS}>{PENDING_STATUS}</option>
+            <option value="">כל הסטטוסים (בלי בוטלות)</option>
+            {ALL_STATUSES.map((st) => (
+              <option key={st} value={st}>
+                {st}
+              </option>
+            ))}
+            <option value="all">הכול, כולל בוטלות</option>
           </Select>
           <Select value={patternFilter} onChange={(e) => setPatternFilter(e.target.value)}>
             <option value="">כל סוגי הגרף</option>

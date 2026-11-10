@@ -5,6 +5,7 @@ import {
   Award,
   ExternalLink,
   ClipboardCopy,
+  RefreshCw,
   Download,
   Flame,
   TrendingDown,
@@ -18,7 +19,10 @@ import { StatTile, InlineField } from '@/components/ui/labeled-value'
 import { Dialog } from '@/components/ui/dialog'
 import { EquityCurveChart } from '@/components/EquityCurveChart'
 import { computeEquitySummary, computeEquityCurve, computeStreaks, computeStatistics } from '@/lib/statistics'
-import { formatCurrency, formatNumber, formatPercentage, isOpenPosition, isPendingPosition, isStopLossBreached } from '@/lib/calculations'
+import { formatCurrency, formatNumber, formatPercentage, isOpenPosition, isPendingPosition, parseOrderExpiry } from '@/lib/calculations'
+import { useLivePricesContext } from '@/hooks/useLivePrices'
+import { computeLiveMetrics } from '@/lib/livePrice'
+import { PriceFreshness } from '@/components/LivePrice'
 import { tradingViewSymbolUrl, tradingViewWatchlistFile, uniqueSymbols } from '@/lib/tradingview'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
@@ -52,7 +56,17 @@ function pnlSince(positions: Position[], since: Date): { pnl: number; count: num
 
 export function DashboardPage({ positions, initialCapital, loading, isDemo = false, onNavigate }: DashboardPageProps) {
   const { toast } = useToast()
-  const equity = React.useMemo(() => computeEquitySummary(positions, initialCapital), [positions, initialCapital])
+  const live = useLivePricesContext()
+  // לחישובי שווי בלבד: פוזיציות פתוחות עם המחיר החי (אם יש). לא נכתב לשום מקום.
+  const positionsWithLive = React.useMemo(
+    () =>
+      positions.map((p) => {
+        const q = isOpenPosition(p) ? live.quotes[p.symbol.toUpperCase()] : undefined
+        return q ? { ...p, currentPrice: q.price } : p
+      }),
+    [positions, live.quotes],
+  )
+  const equity = React.useMemo(() => computeEquitySummary(positionsWithLive, initialCapital), [positionsWithLive, initialCapital])
   const equityCurve = React.useMemo(() => computeEquityCurve(positions, initialCapital), [positions, initialCapital])
   const streaks = React.useMemo(() => computeStreaks(positions), [positions])
   const stats = React.useMemo(() => computeStatistics(positions, initialCapital), [positions, initialCapital])
@@ -74,15 +88,23 @@ export function DashboardPage({ positions, initialCapital, loading, isDemo = fal
         .sort((a, b) => new Date(b.openDate).getTime() - new Date(a.openDate).getTime()),
     [positions],
   )
-  const breachedPositions = React.useMemo(() => openPositions.filter(isStopLossBreached), [openPositions])
-  const totalUnrealized = React.useMemo(
-    () =>
-      openPositions.reduce(
-        (sum, p) => (p.currentPrice != null ? sum + p.currentShares * (p.currentPrice - p.avgEntryPrice) : sum),
-        0,
-      ),
-    [openPositions],
+  const metricsById = React.useMemo(
+    () => new Map(openPositions.map((p) => [p.tradeId, computeLiveMetrics(p, live.quotes[p.symbol.toUpperCase()], live.now)])),
+    [openPositions, live.quotes, live.now],
   )
+  const breachedPositions = React.useMemo(
+    () => openPositions.filter((p) => metricsById.get(p.tradeId)?.nearStop),
+    [openPositions, metricsById],
+  )
+  const totalUnrealized = React.useMemo(
+    () => openPositions.reduce((sum, p) => sum + (metricsById.get(p.tradeId)?.unrealized ?? 0), 0),
+    [openPositions, metricsById],
+  )
+  const totalDaily = React.useMemo(() => {
+    const vals = openPositions.map((p) => metricsById.get(p.tradeId)?.dailyPnl).filter((v): v is number => v != null)
+    return vals.length ? vals.reduce((a, b) => a + b, 0) : null
+  }, [openPositions, metricsById])
+  const tone = (v: number | null | undefined) => (v == null || v === 0 ? undefined : v > 0 ? 'text-win' : 'text-loss')
 
   const [detailPosition, setDetailPosition] = React.useState<Position | null>(null)
 
@@ -95,7 +117,7 @@ export function DashboardPage({ positions, initialCapital, loading, isDemo = fal
           <CardContent className="space-y-2 p-4">
             <div className="flex items-center gap-2 font-medium text-loss">
               <AlertOctagon className="h-4 w-4 shrink-0" />
-              {breachedPositions.length} פוזיציות פתוחות חצו את הסטופ לוס — כדאי לבדוק
+              {breachedPositions.length} פוזיציות פתוחות קרובות לסטופ או מתחתיו — כדאי לבדוק (תצוגה בלבד, שום דבר לא נסגר אוטומטית)
             </div>
             <div className="flex flex-wrap gap-2">
               {breachedPositions.map((p) => (
@@ -104,7 +126,7 @@ export function DashboardPage({ positions, initialCapital, loading, isDemo = fal
                   onClick={() => onNavigate('journal')}
                   className="rounded-full bg-loss-bg px-3 py-1 text-xs font-medium text-loss hover:brightness-110"
                 >
-                  {p.symbol} · ${formatCurrency(p.currentPrice)} מתחת לסטופ ${formatCurrency(p.stopLoss)}
+                  {p.symbol} · ${formatCurrency(metricsById.get(p.tradeId)?.price)} · סטופ ${formatCurrency(p.stopLoss)}
                 </button>
               ))}
             </div>
@@ -160,21 +182,40 @@ export function DashboardPage({ positions, initialCapital, loading, isDemo = fal
       </Card>
 
       <Card>
-        <CardHeader className="flex-row items-center justify-between gap-3">
+        <CardHeader className="flex-row flex-wrap items-center justify-between gap-3">
           <CardTitle>פוזיציות פתוחות ({openPositions.length})</CardTitle>
-          <button
-            onClick={() => onNavigate('journal')}
-            className="flex items-center gap-1 text-xs font-medium text-accent hover:underline"
-          >
-            כל היומן <ArrowLeftCircle className="h-3.5 w-3.5" />
-          </button>
+          <div className="flex items-center gap-3">
+            {openPositions.length > 0 && (
+              <span className="text-[11px] text-text-muted">
+                {live.error ? (
+                  <span className="text-warn">מחיר לא עדכני</span>
+                ) : live.marketOpen ? (
+                  'המסחר פתוח · רענון כל 3 דקות'
+                ) : (
+                  'המסחר סגור · מחיר סגירה'
+                )}
+              </span>
+            )}
+            {openPositions.length > 0 && (
+              <Button size="sm" variant="outline" onClick={() => live.refresh()} disabled={live.loading} data-testid="refresh-prices">
+                <RefreshCw className={cn('h-3.5 w-3.5', live.loading && 'animate-spin')} />
+                רענן מחירים
+              </Button>
+            )}
+            <button
+              onClick={() => onNavigate('journal')}
+              className="flex items-center gap-1 text-xs font-medium text-accent hover:underline"
+            >
+              כל היומן <ArrowLeftCircle className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </CardHeader>
         {!showSkeleton && openPositions.length > 0 && (
           <CardContent className="flex flex-wrap items-center gap-x-6 gap-y-1 pb-0 pt-0 text-xs text-text-muted">
             <span>
-              רווח/הפסד יומי:{' '}
-              <b className={today.count > 0 ? (today.pnl >= 0 ? 'text-win' : 'text-loss') : 'text-text'}>
-                {today.count > 0 ? `${today.pnl >= 0 ? '+' : ''}$${formatCurrency(today.pnl)}` : '—'}
+              רווח/הפסד יומי (מול סגירת אתמול):{' '}
+              <b className={totalDaily == null ? 'text-text' : totalDaily >= 0 ? 'text-win' : 'text-loss'}>
+                {totalDaily == null ? '—' : `${totalDaily >= 0 ? '+' : ''}$${formatCurrency(totalDaily)}`}
               </b>
             </span>
             <span>
@@ -191,37 +232,41 @@ export function DashboardPage({ positions, initialCapital, loading, isDemo = fal
           ) : openPositions.length === 0 ? (
             <p className="py-4 text-center text-sm text-text-muted">אין כרגע פוזיציות פתוחות</p>
           ) : (
-            openPositions.slice(0, 6).map((p) => {
-              const unrealized = p.currentPrice != null ? p.currentShares * (p.currentPrice - p.avgEntryPrice) : null
-              const unrealizedPct = p.currentPrice != null && p.avgEntryPrice > 0 ? ((p.currentPrice - p.avgEntryPrice) / p.avgEntryPrice) * 100 : null
-              const breached = isStopLossBreached(p)
+            openPositions.map((p) => {
+              const m = metricsById.get(p.tradeId)!
+              const quote = live.quotes[p.symbol.toUpperCase()] ?? null
+              const signed = (v: number | null, fmt: (n: number) => string) => (v == null ? '—' : `${v >= 0 ? '+' : ''}${fmt(v)}`)
               return (
                 <button
                   key={p.tradeId}
                   onClick={() => setDetailPosition(p)}
+                  data-testid="open-row"
                   className={cn(
-                    'flex w-full items-center justify-between rounded-lg border border-border bg-surface-2 px-3 py-2 text-right hover:bg-surface',
-                    breached && 'border-loss/50',
+                    'w-full rounded-lg border bg-surface-2 px-3 py-2 text-right hover:bg-surface',
+                    m.nearStop ? 'border-loss bg-loss-bg/40' : m.hitTarget ? 'border-win bg-win-bg/40' : 'border-border',
                   )}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-text">{p.symbol}</span>
-                    {breached && <Badge variant="loss">סטופ נחצה</Badge>}
-                    <span className="text-xs text-text-muted">
-                      {p.currentShares} מניות · ${formatCurrency(p.avgEntryPrice)}
-                      {p.currentPrice != null && <> ← ${formatCurrency(p.currentPrice)}</>}
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium text-text">{p.symbol}</span>
+                      {m.nearStop && <Badge variant="loss">{m.price != null && m.price <= p.stopLoss ? 'מתחת לסטופ' : 'קרוב לסטופ'}</Badge>}
+                      {!m.nearStop && m.hitTarget && <Badge variant="win">הגיע ליעד</Badge>}
+                      <span className="num-tabular text-sm font-semibold text-text">${formatCurrency(m.price)}</span>
+                      <PriceFreshness quote={quote} hasSheetPrice={p.currentPrice != null} />
+                    </div>
+                    <span className={cn('num-tabular text-sm font-semibold', m.unrealized == null ? 'text-text-muted' : m.unrealized >= 0 ? 'text-win' : 'text-loss')}>
+                      {signed(m.unrealized, (n) => `$${formatCurrency(n)}`)}
                     </span>
                   </div>
-                  <span className="flex items-center gap-2">
-                    {unrealizedPct !== null && (
-                      <span className={cn('num-tabular text-xs', unrealizedPct >= 0 ? 'text-win' : 'text-loss')}>
-                        ({unrealizedPct >= 0 ? '+' : ''}{formatPercentage(unrealizedPct)})
-                      </span>
-                    )}
-                    <span className={cn('num-tabular text-sm font-medium', unrealized === null ? 'text-text-muted' : unrealized >= 0 ? 'text-win' : 'text-loss')}>
-                      {unrealized === null ? '—' : `${unrealized >= 0 ? '+' : ''}$${formatCurrency(unrealized)}`}
+                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-text-muted">
+                    <span>{formatNumber(p.currentShares)} מניות · כניסה ${formatCurrency(p.avgEntryPrice)}</span>
+                    <span className={tone(m.pctFromEntry)}>מהכניסה {signed(m.pctFromEntry, (n) => formatPercentage(n))}</span>
+                    <span className={tone(m.currentR)}>{signed(m.currentR, (n) => `${n.toFixed(2)}R`)}</span>
+                    <span className={m.nearStop ? 'text-loss' : undefined}>
+                      מהסטופ {m.stopDistancePct == null ? '—' : formatPercentage(m.stopDistancePct)}
                     </span>
-                  </span>
+                    <span className={tone(m.dailyPnl)}>יומי {signed(m.dailyPnl, (n) => `$${formatCurrency(n)}`)}</span>
+                  </div>
                 </button>
               )
             })
@@ -232,27 +277,33 @@ export function DashboardPage({ positions, initialCapital, loading, isDemo = fal
       {pendingPositions.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>ממתינות לכניסה ({pendingPositions.length})</CardTitle>
+            <CardTitle>הוראות ממתינות ({pendingPositions.length})</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             <p className="text-xs text-text-muted">פקודות שעוד לא בוצעו. לא נכללות בשווי, ברווח/הפסד ובסטטיסטיקה.</p>
-            {pendingPositions.map((p) => (
-              <button
-                key={p.tradeId}
-                onClick={() => setDetailPosition(p)}
-                className="flex w-full items-center justify-between rounded-lg border border-dashed border-border bg-surface-2 px-3 py-2 text-right hover:bg-surface"
-                data-testid="pending-row"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-text">{p.symbol}</span>
-                  <Badge variant="pending">{p.status}</Badge>
-                  <span className="text-xs text-text-muted">
-                    {formatNumber(p.originalShares)} מניות · כניסה ${formatCurrency(p.avgEntryPrice)} · סטופ ${formatCurrency(p.stopLoss)}
-                  </span>
-                </div>
-                <span className="text-xs text-text-muted">סיכון ${formatCurrency(p.riskAmount)}</span>
-              </button>
-            ))}
+            {pendingPositions.map((p) => {
+              const expiry = parseOrderExpiry(p.setupReason) ?? parseOrderExpiry(p.notes)
+              return (
+                <button
+                  key={p.tradeId}
+                  onClick={() => setDetailPosition(p)}
+                  className="w-full rounded-lg border border-dashed border-border bg-surface-2 px-3 py-2 text-right hover:bg-surface"
+                  data-testid="pending-row"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium text-text">{p.symbol}</span>
+                    <Badge variant="pending">{p.status}</Badge>
+                    {expiry && <span className="text-xs text-text-muted">בתוקף עד {expiry}</span>}
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-text-muted">
+                    <span>כניסה מותנית <b className="text-text">${formatCurrency(p.avgEntryPrice)}</b></span>
+                    <span>סטופ <b className="text-text">${formatCurrency(p.stopLoss)}</b></span>
+                    <span>יעד <b className="text-text">{p.targetPrice ? `$${formatCurrency(p.targetPrice)}` : '—'}</b></span>
+                    <span>כמות <b className="text-text">{formatNumber(p.originalShares)}</b></span>
+                  </div>
+                </button>
+              )
+            })}
           </CardContent>
         </Card>
       )}
@@ -336,23 +387,22 @@ export function DashboardPage({ positions, initialCapital, loading, isDemo = fal
               </div>
             )}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {detailPosition.currentPrice != null && (
-                <InlineField label="מחיר נוכחי" value={`$${formatCurrency(detailPosition.currentPrice)}`} />
-              )}
-              {detailPosition.currentPrice != null && isOpenPosition(detailPosition) && (
-                <InlineField
-                  label="רווח/הפסד לא ממומש"
-                  value={(() => {
-                    const unrealized = detailPosition.currentShares * (detailPosition.currentPrice! - detailPosition.avgEntryPrice)
-                    return `${unrealized >= 0 ? '+' : ''}$${formatCurrency(unrealized)}`
-                  })()}
-                  className={
-                    detailPosition.currentShares * (detailPosition.currentPrice - detailPosition.avgEntryPrice) >= 0
-                      ? 'text-win'
-                      : 'text-loss'
-                  }
-                />
-              )}
+              {(() => {
+                if (!isOpenPosition(detailPosition)) return null
+                const m = computeLiveMetrics(detailPosition, live.quotes[detailPosition.symbol.toUpperCase()], live.now)
+                if (m.price == null) return null
+                const sg = (v: number | null, f: (n: number) => string) => (v == null ? '—' : `${v >= 0 ? '+' : ''}${f(v)}`)
+                return (
+                  <>
+                    <InlineField label="מחיר נוכחי" value={`$${formatCurrency(m.price)}`} />
+                    <InlineField label="רווח/הפסד לא ממומש" value={sg(m.unrealized, (n) => `$${formatCurrency(n)}`)} className={tone(m.unrealized)} />
+                    <InlineField label="שינוי מהכניסה" value={sg(m.pctFromEntry, (n) => formatPercentage(n))} className={tone(m.pctFromEntry)} />
+                    <InlineField label="R נוכחי" value={sg(m.currentR, (n) => `${n.toFixed(2)}R`)} className={tone(m.currentR)} />
+                    <InlineField label="מרחק מהסטופ" value={m.stopDistancePct == null ? '—' : formatPercentage(m.stopDistancePct)} className={m.nearStop ? 'text-loss' : undefined} />
+                    <InlineField label="רווח/הפסד יומי" value={sg(m.dailyPnl, (n) => `$${formatCurrency(n)}`)} className={tone(m.dailyPnl)} />
+                  </>
+                )
+              })()}
               <InlineField label="מחיר כניסה" value={`$${formatCurrency(detailPosition.avgEntryPrice)}`} />
               <InlineField
                 label={isPendingPosition(detailPosition) ? 'כמות מתוכננת' : 'כמות מניות'}

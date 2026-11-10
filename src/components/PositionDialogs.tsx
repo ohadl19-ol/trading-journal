@@ -6,7 +6,7 @@ import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
-import { isOpenPosition } from '@/lib/calculations'
+import { isOpenPosition, isPendingPosition } from '@/lib/calculations'
 import { CATEGORY_OPTIONS, OUTCOME_OPTIONS, PATTERN_OPTIONS, TRADE_TAG_GROUPS, type Position } from '@/types'
 import { combineDateTimeToIso, cn } from '@/lib/utils'
 import type {
@@ -381,7 +381,7 @@ export function PositionDialogs({
             <Label>הערות</Label>
             <Textarea value={editNotes} onChange={(e) => setEditNotes(e.target.value)} rows={2} />
           </div>
-          {position.status !== 'סגורה' && (
+          {(isOpenPosition(position) || isPendingPosition(position)) && (
             <div>
               <Label>סטופ לוס (לדוגמה עדכון טריילינג סטופ)</Label>
               <Input

@@ -56,6 +56,12 @@ var SHEET_IDS_ = {
 };
 var DEMO_TAG_ = 'דמו';
 
+// סטאטוסים: רק "פתוחה" / "פתוחה חלקית" הן פוזיציות פתוחות בפועל.
+// "ממתינה לכניסה" = פקודה שעוד לא בוצעה; "בוטלה" = פקודה שבוטלה לפני מילוי — שתיהן לא פתוחות ולא סגורות.
+function isOpenStatus_(status) {
+  return status === 'פתוחה' || status === 'פתוחה חלקית';
+}
+
 // היעד של הבקשה הנוכחית (נקבע פעם אחת בתחילת doGet/doPost ע"י bindTarget_)
 var CURRENT_TARGET_ = null;
 var CURRENT_SS_ = null;
@@ -128,12 +134,17 @@ function doGet(e) {
       throw new Error('חסר מזהה גיליון בבקשה. עדכן את האפליקציה לגרסה האחרונה.');
     }
 
-    if (!isDemo_()) {
+    if (scope === 'quotes') {
+      // מחירים חיים בלבד: לא נוגעים בשום גיליון (לא קוראים, לא כותבים), ולא מריצים בדיקות התראה
+      payload = fetchQuotes_(params.symbols);
+    } else if (!isDemo_()) {
       checkWatchlistAlerts_(); // בדיקה הזדמנותית בכל טעינה - שולחת מייל אם מניה חצתה יעד
       checkStopLossAlerts_(); // בדיקה הזדמנותית בכל טעינה - שולחת מייל אם פוזיציה פתוחה חצתה סטופ
     }
 
-    if (scope === 'summary') {
+    if (scope === 'quotes') {
+      // כבר טופל למעלה
+    } else if (scope === 'summary') {
       // תקציר קומפקטי (לשימוש כלים חיצוניים כמו Custom GPT Actions, שיש להם מגבלת גודל תשובה)
       payload = buildSummaryView_();
     } else if (scope === 'trades') {
@@ -180,7 +191,7 @@ function doGet(e) {
 function buildSummaryView_() {
   var trades = readPositions_();
   var closed = trades.filter(function (t) { return t.status === 'סגורה'; });
-  var open = trades.filter(function (t) { return t.status !== 'סגורה'; });
+  var open = trades.filter(function (t) { return isOpenStatus_(t.status); });
 
   var winCount = 0, lossCount = 0, totalRealizedPnl = 0;
   var winSum = 0, lossSum = 0;
@@ -767,6 +778,8 @@ function deleteExecutionsForTrade_(tradeId) {
  * כדי שעסקאות סגורות לעולם לא יתעדכנו יותר.
  */
 function setLivePriceFormula_(sheet, rowIndex) {
+  // ביומן הדמו עמודת "מחיר נוכחי" מתעדכנת כל לילה במחיר סגירה ע"י תהליך חיצוני — אסור לדרוס אותה בנוסחה
+  if (isDemo_()) return;
   var symbolCol = POSITIONS_HEADERS.indexOf('סימול') + 1;
   var priceCol = POSITIONS_HEADERS.indexOf('מחיר נוכחי (לא ממומש)') + 1;
   var symbolA1 = sheet.getRange(rowIndex, symbolCol).getA1Notation();
@@ -975,7 +988,7 @@ function checkStopLossAlerts_() {
 
   for (var i = 0; i < data.length; i++) {
     var row = data[i];
-    if (row[statusCol] === 'סגורה') continue;
+    if (!isOpenStatus_(row[statusCol])) continue;
     if (row[alertCol] === true) continue;
 
     var stop = row[stopCol];
@@ -1261,6 +1274,74 @@ function handleDeleteCapitalFlow_(body) {
 // לא ברשימת WRITE_ACTIONS_), כדי שמפתח ה-API לא ייחשף בשום תשובת JSON או ביומן השינויים.
 
 var TWELVE_DATA_BASE_URL = 'https://api.twelvedata.com';
+
+// מטמון משותף לכל המכשירים (ולשני המצבים) למחיר של כל סימול — שומר על מכסת הקריאות של Twelve Data
+var QUOTE_CACHE_SECONDS_ = 170;
+var MAX_QUOTE_SYMBOLS_ = 20;
+
+/**
+ * מחירים עדכניים לרשימת סימולים (מופרדים בפסיק) מ-Twelve Data (/quote). מחזיר לכל סימול:
+ * מחיר אחרון, סגירת אתמול, זמן הציטוט ומצב השוק. לא כותב כלום לשום גיליון.
+ */
+function fetchQuotes_(symbolsParam) {
+  var symbols = String(symbolsParam || '')
+    .split(',')
+    .map(function (s) { return s.trim().toUpperCase(); })
+    .filter(function (s, i, arr) { return /^[A-Z0-9.\-]{1,12}$/.test(s) && arr.indexOf(s) === i; })
+    .slice(0, MAX_QUOTE_SYMBOLS_);
+  var result = { quotes: {}, errors: {}, fetchedAt: new Date().toISOString() };
+  if (symbols.length === 0) return result;
+
+  var cache = CacheService.getScriptCache();
+  var missing = [];
+  symbols.forEach(function (sym) {
+    var hit = cache.get('quote_' + sym);
+    if (hit) result.quotes[sym] = JSON.parse(hit);
+    else missing.push(sym);
+  });
+  if (missing.length === 0) return result;
+
+  var apiKey = getMarketDataApiKey_();
+  if (!apiKey) {
+    missing.forEach(function (sym) { result.errors[sym] = 'לא הוגדר מפתח API לנתוני שוק'; });
+    return result;
+  }
+
+  var url = TWELVE_DATA_BASE_URL + '/quote?symbol=' + encodeURIComponent(missing.join(',')) +
+    '&apikey=' + encodeURIComponent(apiKey);
+  var data;
+  try {
+    data = JSON.parse(UrlFetchApp.fetch(url, { muteHttpExceptions: true }).getContentText());
+  } catch (err) {
+    missing.forEach(function (sym) { result.errors[sym] = 'ספק המחירים לא זמין'; });
+    return result;
+  }
+  // סימול יחיד מוחזר כאובייקט; כמה סימולים — כמפה לפי סימול. שגיאה כללית: status=error ברמה העליונה
+  if (data && data.status === 'error' && !data.symbol) {
+    missing.forEach(function (sym) { result.errors[sym] = data.message || 'שגיאה מספק המחירים'; });
+    return result;
+  }
+  var bySymbol = missing.length === 1 ? (function () { var m = {}; m[missing[0]] = data; return m; })() : data;
+
+  missing.forEach(function (sym) {
+    var q = bySymbol && bySymbol[sym];
+    if (!q || q.status === 'error' || q.close === undefined) {
+      result.errors[sym] = (q && q.message) || 'אין מחיר';
+      return;
+    }
+    var ts = Number(q.last_quote_at || q.timestamp);
+    var quote = {
+      price: Number(q.close),
+      previousClose: q.previous_close !== undefined ? Number(q.previous_close) : null,
+      quoteTime: ts ? new Date(ts * 1000).toISOString() : null,
+      isMarketOpen: q.is_market_open === true,
+      source: 'Twelve Data',
+    };
+    result.quotes[sym] = quote;
+    cache.put('quote_' + sym, JSON.stringify(quote), QUOTE_CACHE_SECONDS_);
+  });
+  return result;
+}
 
 function getMarketDataApiKey_() {
   return PropertiesService.getScriptProperties().getProperty('twelveDataApiKey');
