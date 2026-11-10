@@ -8,6 +8,7 @@ import { useToast } from '@/components/ui/toast'
 import { testConnection } from '@/lib/api'
 import { MODE_LABEL, type AccountMode, type SheetTarget } from '@/lib/accountMode'
 import { exportBackupCsv } from '@/lib/csvExport'
+import { loadTradingViewLayoutId, parseTradingViewLayoutId, saveTradingViewLayoutId } from '@/lib/tradingview'
 import type { Theme } from '@/lib/theme'
 import type { AppSettings, Execution, Position } from '@/types'
 
@@ -26,6 +27,8 @@ export function SettingsPage({ mode, sheetTarget, settings, onSave, positions, e
   const { toast } = useToast()
   const [form, setForm] = React.useState<AppSettings>(settings)
   const [testing, setTesting] = React.useState(false)
+  const [tvLayout, setTvLayout] = React.useState(() => loadTradingViewLayoutId())
+  const tvLayoutId = parseTradingViewLayoutId(tvLayout)
 
   function handleExport() {
     if (positions.length === 0) {
@@ -39,6 +42,11 @@ export function SettingsPage({ mode, sheetTarget, settings, onSave, positions, e
   React.useEffect(() => setForm(settings), [settings])
 
   function handleSave() {
+    if (tvLayout.trim() && !tvLayoutId) {
+      toast('כתובת הפריסה ב-TradingView לא תקינה. הדבק כתובת שמתחילה ב-tradingview.com/chart/', 'error')
+      return
+    }
+    saveTradingViewLayoutId(tvLayoutId)
     onSave(form)
     toast('ההגדרות נשמרו')
   }
@@ -154,6 +162,27 @@ export function SettingsPage({ mode, sheetTarget, settings, onSave, positions, e
               למשל אם הברוקר גובה 1.50$ לפעולה, עסקת כניסה+סגירה פשוטה תעלה בסך הכול 3$.
             </p>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>TradingView</CardTitle>
+          <CardDescription>
+            לחיצה על "גרף חי" פותחת את מסך הגרפים של TradingView עם המניה. כדי שייפתח עם הפריסה
+            שלך (אינדיקטורים, טווחי זמן), פתח את הגרף שלך ב-TradingView, העתק את הכתובת מהדפדפן
+            והדבק אותה כאן.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-1">
+          <Label>כתובת הפריסה שלי (אופציונלי)</Label>
+          <Input
+            dir="ltr"
+            value={tvLayout}
+            onChange={(e) => setTvLayout(e.target.value)}
+            placeholder="https://www.tradingview.com/chart/AbCd1234/"
+          />
+          {tvLayoutId && <p className="text-xs text-text-muted">מזהה פריסה: {tvLayoutId}</p>}
         </CardContent>
       </Card>
 
