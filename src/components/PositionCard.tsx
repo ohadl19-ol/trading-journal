@@ -9,6 +9,7 @@ import {
   formatCurrency,
   formatNumber,
   formatPercentage,
+  isCanceledPosition,
   isOpenPosition,
   isPendingPosition,
   isStopLossBreached,
@@ -16,7 +17,10 @@ import {
   rrColorClass,
 } from '@/lib/calculations'
 import { tradingViewSymbolUrl } from '@/lib/tradingview'
-import { PENDING_STATUS, type Execution, type Position } from '@/types'
+import { CANCELED_STATUS, PENDING_STATUS, type Execution, type Position } from '@/types'
+import { useLiveQuote } from '@/hooks/useLivePrices'
+import { computeLiveMetrics } from '@/lib/livePrice'
+import { PriceFreshness } from '@/components/LivePrice'
 import { cn } from '@/lib/utils'
 
 interface PositionCardProps {
@@ -36,6 +40,7 @@ const statusVariant = {
   'פתוחה חלקית': 'warn',
   סגורה: 'default',
   [PENDING_STATUS]: 'pending',
+  [CANCELED_STATUS]: 'default',
 } as const
 
 export function PositionCard({
@@ -52,12 +57,14 @@ export function PositionCard({
   const [expanded, setExpanded] = React.useState(false)
   const isOpen = isOpenPosition(position)
   const isPending = isPendingPosition(position)
+  const isCanceled = isCanceledPosition(position)
   const pnlPositive = position.realizedPnl >= 0
-  const unrealizedPnl =
-    isOpen && position.currentPrice != null
-      ? position.currentShares * (position.currentPrice - position.avgEntryPrice)
-      : null
-  const stopBreached = isStopLossBreached(position)
+  // מחיר חי (מוצג בלבד, לא נכתב לגיליון); בלעדיו — המחיר מעמודת "מחיר נוכחי" ביומן
+  const quote = useLiveQuote(position.symbol)
+  const live = isOpen ? computeLiveMetrics(position, quote) : null
+  const unrealizedPnl = live?.unrealized ?? null
+  const stopBreached = isOpen ? !!live?.nearStop : isStopLossBreached(position)
+  const hitTarget = !!live?.hitTarget
   // מרחק הסטופ מהכניסה באחוזים — מחושב תמיד בזמן אמת ממחיר הכניסה והסטופ השמורים,
   // כך שזה נשאר מדויק גם אחרי עדכון סטופ (טריילינג סטופ)
   const stopPct =
@@ -66,12 +73,21 @@ export function PositionCard({
       : null
 
   return (
-    <Card className={cn('animate-card-in', stopBreached && 'border-loss ring-1 ring-loss/40')}>
+    <Card
+      className={cn(
+        'animate-card-in',
+        stopBreached && 'border-loss ring-1 ring-loss/40',
+        !stopBreached && hitTarget && 'border-win ring-1 ring-win/40',
+        isCanceled && 'opacity-70',
+      )}
+    >
       <CardContent className="p-4">
         {stopBreached && (
           <div className="mb-3 flex items-center gap-2 rounded-lg bg-loss-bg px-3 py-2 text-sm font-medium text-loss">
             <AlertOctagon className="h-4 w-4 shrink-0" />
-            המחיר הנוכחי (${formatCurrency(position.currentPrice!)}) חצה את הסטופ לוס (${formatCurrency(position.stopLoss)}) — שקול לסגור את הפוזיציה
+            {live?.price != null && live.price <= position.stopLoss
+              ? `המחיר (${formatCurrency(live.price)}$) מתחת לסטופ (${formatCurrency(position.stopLoss)}$)`
+              : `המחיר (${formatCurrency(live?.price ?? position.currentPrice)}$) פחות מ-1% מעל הסטופ (${formatCurrency(position.stopLoss)}$)`}
           </div>
         )}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -146,7 +162,12 @@ export function PositionCard({
           </div>
 
           <div className="text-right sm:text-left">
-            {isPending ? (
+            {isCanceled ? (
+              <>
+                <div className="text-base font-semibold text-text-muted">בוטלה</div>
+                <div className="text-xs text-text-muted">בוטלה לפני מילוי · לא נכללת בסטטיסטיקה</div>
+              </>
+            ) : isPending ? (
               <>
                 <div className="text-base font-semibold text-text-muted">ממתינה לכניסה</div>
                 <div className="text-xs text-text-muted">
@@ -163,7 +184,13 @@ export function PositionCard({
                 >
                   {unrealizedPnl >= 0 ? '+' : ''}${formatCurrency(unrealizedPnl)}
                 </div>
-                <div className="text-xs text-text-muted">לא ממומש · במחיר ${formatCurrency(position.currentPrice)}</div>
+                <div className="text-xs text-text-muted">
+                  לא ממומש · במחיר ${formatCurrency(live?.price)}
+                  {live?.pctFromEntry != null && ` (${live.pctFromEntry >= 0 ? '+' : ''}${formatPercentage(live.pctFromEntry)})`}
+                  {live?.currentR != null && ` · ${live.currentR >= 0 ? '+' : ''}${live.currentR.toFixed(2)}R`}
+                </div>
+                <PriceFreshness quote={quote} hasSheetPrice={position.currentPrice != null} />
+                {hitTarget && <div className="text-xs font-medium text-win">המחיר הגיע ליעד</div>}
               </>
             ) : (
               <div

@@ -1,4 +1,4 @@
-import { PENDING_STATUS, type CalculatorResult, type Position } from '@/types'
+import { CANCELED_STATUS, PENDING_STATUS, type CalculatorResult, type Position } from '@/types'
 
 export interface CalculatorInput {
   riskAmount: number
@@ -79,9 +79,25 @@ export function isPendingPosition(position: Pick<Position, 'status'>): boolean {
   return position.status === PENDING_STATUS
 }
 
-/** פוזיציה פתוחה בפועל (יש בה מניות בשוק): לא סגורה ולא ממתינה לכניסה */
+/** עסקה שבוטלה לפני מילוי — מופיעה רק ברשימת כל העסקאות, לא בשום כרטיס או חישוב */
+export function isCanceledPosition(position: Pick<Position, 'status'>): boolean {
+  return position.status === CANCELED_STATUS
+}
+
+/**
+ * פוזיציה פתוחה בפועל (יש בה מניות בשוק): רק "פתוחה" או "פתוחה חלקית" (אחרי מכירה חלקית).
+ * כל סטאטוס אחר — ממתינה, בוטלה, סגורה, או ערך לא מוכר — לא נחשב פתוח.
+ */
 export function isOpenPosition(position: Pick<Position, 'status'>): boolean {
-  return position.status !== 'סגורה' && position.status !== PENDING_STATUS
+  return position.status === 'פתוחה' || position.status === 'פתוחה חלקית'
+}
+
+/** תאריך תוקף של הוראה ממתינה, מתוך הטקסט "בתוקף עד 12.11.2026" בסיבת הכניסה (או בהערות) */
+export function parseOrderExpiry(text: string | null | undefined): string | null {
+  const m = /בתוקף\s+עד\s+(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?/.exec(text ?? '')
+  if (!m) return null
+  const year = m[3] ? (m[3].length === 2 ? `20${m[3]}` : m[3]) : null
+  return year ? `${m[1]}.${m[2]}.${year}` : `${m[1]}.${m[2]}`
 }
 
 /** האם המחיר הנוכחי של פוזיציה פתוחה חצה (ירד עד/מתחת ל)- הסטופ לוס שלה */

@@ -65,7 +65,10 @@ export const ALL_TRADE_TAGS = Object.values(TRADE_TAG_GROUPS).flat()
 
 /** 'ממתינה לכניסה' = פקודה שעוד לא בוצעה (למשל קנייה מותנית): אין לה מניות, ואין לה רווח/הפסד */
 export const PENDING_STATUS = 'ממתינה לכניסה' as const
-export type PositionStatus = 'פתוחה' | 'פתוחה חלקית' | 'סגורה' | typeof PENDING_STATUS
+/** 'בוטלה' = פקודה שבוטלה לפני מילוי: לא מוצגת בכרטיסי המצב ולא נכללת בשום חישוב */
+export const CANCELED_STATUS = 'בוטלה' as const
+export type PositionStatus = 'פתוחה' | 'פתוחה חלקית' | 'סגורה' | typeof PENDING_STATUS | typeof CANCELED_STATUS
+export const ALL_STATUSES: PositionStatus[] = ['פתוחה', 'פתוחה חלקית', PENDING_STATUS, 'סגורה', CANCELED_STATUS]
 export type WinLoss = 'WIN' | 'LOSS' | ''
 
 export const ACTION_TYPES = ['כניסה', 'חיזוק', 'מכירה חלקית', 'סגירה'] as const

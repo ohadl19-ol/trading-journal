@@ -19,6 +19,13 @@ function fakeSheet(log: string[], id: string): unknown {
       if (prop === 'getValues') return () => [[]]
       if (prop === 'getValue') return () => ''
       if (prop === 'getId') return () => id
+      if (prop === 'getA1Notation') return () => 'C2'
+      if (prop === 'setFormula') {
+        return () => {
+          log.push(`formula:${id}`)
+          return proxy
+        }
+      }
       if (prop === 'appendRow' || prop === 'setValues' || prop === 'setValue' || prop === 'deleteRow') {
         return () => {
           log.push(`write:${id}`)
@@ -35,11 +42,16 @@ function fakeSheet(log: string[], id: string): unknown {
 let opened: string[]
 let writes: string[]
 let props: Map<string, string>
+let fetchedUrls: string[]
+/** מה ש-Twelve Data המדומה מחזיר */
+let quoteResponse: unknown
 
 function load(overrideIds?: { real: string; demo: string }) {
   opened = []
   writes = []
   props = new Map()
+  fetchedUrls = []
+  const cacheStore = new Map<string, string>()
   const ctx: Record<string, unknown> = {
     SpreadsheetApp: {
       openById: (id: string) => {
@@ -56,7 +68,12 @@ function load(overrideIds?: { real: string; demo: string }) {
         setProperty: (k: string, v: string) => void props.set(k, v),
       }),
     },
-    CacheService: { getScriptCache: () => ({ get: () => null, put: () => {} }) },
+    CacheService: {
+      getScriptCache: () => ({
+        get: (k: string) => cacheStore.get(k) ?? null,
+        put: (k: string, v: string) => void cacheStore.set(k, v),
+      }),
+    },
     ContentService: {
       MimeType: { JSON: 'json', JAVASCRIPT: 'js' },
       createTextOutput: (text: string) => ({ text, setMimeType() { return this } }),
@@ -64,7 +81,12 @@ function load(overrideIds?: { real: string; demo: string }) {
     Utilities: { getUuid: () => 'uuid-1234-5678' },
     MailApp: { sendEmail: () => {} },
     Session: { getActiveUser: () => ({ getEmail: () => 'x@example.com' }) },
-    UrlFetchApp: { fetch: () => { throw new Error('no network in tests') } },
+    UrlFetchApp: {
+      fetch: (url: string) => {
+        fetchedUrls.push(url)
+        return { getContentText: () => JSON.stringify(quoteResponse) }
+      },
+    },
     console,
   }
   vm.createContext(ctx)
@@ -170,4 +192,49 @@ describe('שרת: הגדרת מזהים שגויה', () => {
     expect(api.get({ mode: 'real', sheetId: REAL }).status).toBe('error')
     expect(opened).toEqual([])
   })
+})
+
+describe('שרת: מחירים חיים ועמודת "מחיר נוכחי"', () => {
+  it('scope=quotes לא פותח ולא כותב לשום גיליון, ומשתמש במטמון', () => {
+    const api = load()
+    props.set('twelveDataApiKey', 'k')
+    quoteResponse = {
+      VTRS: { symbol: 'VTRS', close: '20.49', previous_close: '20.20', timestamp: 1794326400, is_market_open: true },
+      AAPL: { symbol: 'AAPL', close: '230.10', previous_close: '228.00', timestamp: 1794326400, is_market_open: true },
+    }
+    const res = api.get({ mode: 'demo', sheetId: DEMO, scope: 'quotes', symbols: 'VTRS,aapl,VTRS' })
+    expect(res.quotes.VTRS.price).toBe(20.49)
+    expect(res.quotes.VTRS.previousClose).toBe(20.2)
+    expect(res.quotes.AAPL.price).toBe(230.1)
+    expect(opened).toEqual([])
+    expect(writes).toEqual([])
+    expect(fetchedUrls).toHaveLength(1)
+
+    // קריאה שנייה — מהמטמון, בלי לפנות שוב לספק
+    api.get({ mode: 'demo', sheetId: DEMO, scope: 'quotes', symbols: 'VTRS' })
+    expect(fetchedUrls).toHaveLength(1)
+  })
+
+  it('סימול שנכשל מדווח כשגיאה ולא מפיל את השאר', () => {
+    const api = load()
+    props.set('twelveDataApiKey', 'k')
+    quoteResponse = { VTRS: { close: '20.49', previous_close: '20.2', timestamp: 1 }, ZZZZ: { status: 'error', message: 'not found' } }
+    const res = api.get({ mode: 'real', sheetId: REAL, scope: 'quotes', symbols: 'VTRS,ZZZZ' })
+    expect(res.quotes.VTRS.price).toBe(20.49)
+    expect(res.errors.ZZZZ).toBe('not found')
+  })
+
+  it('פתיחת עסקה בדמו לא כותבת נוסחת GOOGLEFINANCE לעמודה AC', () => {
+    const api = load()
+    const res = api.post({ action: 'open', mode: 'demo', sheetId: DEMO, symbol: 'VTRS', entryPrice: 20, stopLoss: 19, shares: 1, riskAmount: 1 })
+    expect(res.status).toBe('ok')
+    expect(writes).not.toContain(`formula:${DEMO}`)
+  })
+
+  it('ביקורת: ביומן האמיתי הנוסחה כן נכתבת (כמו קודם) — כלומר הבדיקה שלמעלה באמת בודקת משהו', () => {
+    const api = load()
+    api.post({ action: 'open', mode: 'real', sheetId: REAL, symbol: 'VTRS', entryPrice: 20, stopLoss: 19, shares: 1, riskAmount: 1 })
+    expect(writes).toContain(`formula:${REAL}`)
+  })
+
 })
