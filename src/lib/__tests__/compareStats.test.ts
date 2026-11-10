@@ -55,3 +55,15 @@ describe('ממתינה לכניסה', () => {
     expect(e.openPositionsWithPrice + e.openPositionsMissingPrice).toBe(0)
   })
 })
+
+import { parseTradingViewLayoutId, tradingViewWatchlistFile } from '@/lib/tradingview'
+describe('TradingView', () => {
+  it('מחלץ מזהה פריסה מכתובת מלאה', () => {
+    expect(parseTradingViewLayoutId('https://www.tradingview.com/chart/AbCd1234/?symbol=NASDAQ%3AVTRS')).toBe('AbCd1234')
+    expect(parseTradingViewLayoutId('AbCd1234')).toBe('AbCd1234')
+    expect(parseTradingViewLayoutId('https://example.com/x')).toBe('')
+  })
+  it('קובץ רשימה: כותרת וסימולים ייחודיים', () => {
+    expect(tradingViewWatchlistFile('מסחר דמו', ['vtrs', 'VTRS', 'AAPL'])).toBe('###מסחר דמו,VTRS,AAPL')
+  })
+})

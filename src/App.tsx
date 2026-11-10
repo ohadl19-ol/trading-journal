@@ -252,6 +252,7 @@ function AppShell({ mode, onModeChange, tab, setTab }: AppShellProps) {
             positions={positions}
             initialCapital={settings.initialCapital}
             loading={loading}
+            isDemo={isDemo}
             onNavigate={(t) => setTab(t)}
           />
         )}

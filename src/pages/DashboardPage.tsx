@@ -4,6 +4,8 @@ import {
   ArrowLeftCircle,
   Award,
   ExternalLink,
+  ClipboardCopy,
+  Download,
   Flame,
   TrendingDown,
   TrendingUp,
@@ -17,7 +19,9 @@ import { Dialog } from '@/components/ui/dialog'
 import { EquityCurveChart } from '@/components/EquityCurveChart'
 import { computeEquitySummary, computeEquityCurve, computeStreaks, computeStatistics } from '@/lib/statistics'
 import { formatCurrency, formatNumber, formatPercentage, isOpenPosition, isPendingPosition, isStopLossBreached } from '@/lib/calculations'
-import { tradingViewSymbolUrl } from '@/lib/tradingview'
+import { tradingViewSymbolUrl, tradingViewWatchlistFile, uniqueSymbols } from '@/lib/tradingview'
+import { Button } from '@/components/ui/button'
+import { useToast } from '@/components/ui/toast'
 import type { Position } from '@/types'
 import { cn } from '@/lib/utils'
 
@@ -25,6 +29,7 @@ interface DashboardPageProps {
   positions: Position[]
   initialCapital: number
   loading: boolean
+  isDemo?: boolean
   onNavigate: (tab: 'journal' | 'statistics') => void
 }
 
@@ -45,7 +50,8 @@ function pnlSince(positions: Position[], since: Date): { pnl: number; count: num
   return { pnl: trades.reduce((s, p) => s + p.realizedPnl, 0), count: trades.length }
 }
 
-export function DashboardPage({ positions, initialCapital, loading, onNavigate }: DashboardPageProps) {
+export function DashboardPage({ positions, initialCapital, loading, isDemo = false, onNavigate }: DashboardPageProps) {
+  const { toast } = useToast()
   const equity = React.useMemo(() => computeEquitySummary(positions, initialCapital), [positions, initialCapital])
   const equityCurve = React.useMemo(() => computeEquityCurve(positions, initialCapital), [positions, initialCapital])
   const streaks = React.useMemo(() => computeStreaks(positions), [positions])
@@ -250,6 +256,55 @@ export function DashboardPage({ positions, initialCapital, loading, onNavigate }
           </CardContent>
         </Card>
       )}
+
+      {(openPositions.length > 0 || pendingPositions.length > 0) && (() => {
+        const symbols = uniqueSymbols([...openPositions, ...pendingPositions].map((p) => p.symbol))
+        const listName = isDemo ? 'מסחר דמו' : 'פוזיציות פתוחות'
+        return (
+          <Card>
+            <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+              <div className="text-sm">
+                <div className="font-medium text-text">רשימה ל-TradingView: {listName}</div>
+                <div className="text-xs text-text-muted">
+                  {symbols.join(', ')} · פתוחות וממתינות לכניסה
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(symbols.join(','))
+                      toast(`הועתקו ${symbols.length} סימולים. ב-TradingView: + ברשימה ← הדבק`)
+                    } catch {
+                      toast('לא הצלחתי להעתיק. נסה את הורדת הקובץ', 'error')
+                    }
+                  }}
+                >
+                  <ClipboardCopy className="h-3.5 w-3.5" />
+                  העתק סימולים
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const blob = new Blob([tradingViewWatchlistFile(listName, symbols)], { type: 'text/plain;charset=utf-8' })
+                    const a = document.createElement('a')
+                    a.href = URL.createObjectURL(blob)
+                    a.download = `${listName}.txt`
+                    a.click()
+                    setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+                  }}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  קובץ לייבוא
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )
+      })()}
 
       {!showSkeleton && (
         <Card>
