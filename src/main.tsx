@@ -2,6 +2,10 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
+import { consumeSetupLink } from './lib/appToken'
+
+// קישור הגדרה (סריקת QR ממכשיר אחר) — נקלט ונמחק מהכתובת לפני שהאפליקציה מתחילה לטעון נתונים
+consumeSetupLink()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
