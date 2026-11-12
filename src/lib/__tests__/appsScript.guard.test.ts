@@ -27,8 +27,9 @@ function fakeSheet(log: string[], id: string): unknown {
         }
       }
       if (prop === 'appendRow' || prop === 'setValues' || prop === 'setValue' || prop === 'deleteRow') {
-        return () => {
+        return (...args: unknown[]) => {
           log.push(`write:${id}`)
+          if (prop === 'appendRow') appended.push(JSON.stringify(args))
           return proxy
         }
       }
@@ -42,6 +43,11 @@ function fakeSheet(log: string[], id: string): unknown {
 let opened: string[]
 let writes: string[]
 let props: Map<string, string>
+let appended: string[]
+let mails: number
+let triggers: string[]
+/** שעה מדומה בניו יורק לבדיקות שעות המסחר: [יום בשבוע 1=שני..7=ראשון, שעה, דקה] */
+let nyClock: [number, number, number]
 let fetchedUrls: string[]
 /** מה ש-Twelve Data המדומה מחזיר */
 let quoteResponse: unknown
@@ -51,6 +57,10 @@ function load(overrideIds?: { real: string; demo: string }) {
   writes = []
   props = new Map()
   fetchedUrls = []
+  appended = []
+  mails = 0
+  triggers = []
+  nyClock = [2, 11, 0]
   const cacheStore = new Map<string, string>()
   const ctx: Record<string, unknown> = {
     SpreadsheetApp: {
@@ -78,8 +88,23 @@ function load(overrideIds?: { real: string; demo: string }) {
       MimeType: { JSON: 'json', JAVASCRIPT: 'js' },
       createTextOutput: (text: string) => ({ text, setMimeType() { return this } }),
     },
-    Utilities: { getUuid: () => 'uuid-1234-5678' },
-    MailApp: { sendEmail: () => {} },
+    Utilities: {
+      getUuid: () => 'uuid-1234-5678',
+      base64Encode: () => '',
+      formatDate: (_d: Date, _tz: string, fmt: string) =>
+        String(fmt === 'u' ? nyClock[0] : fmt === 'HH' ? nyClock[1] : nyClock[2]),
+    },
+    MailApp: { sendEmail: () => void (mails += 1) },
+    ScriptApp: {
+      getProjectTriggers: () => triggers.map((h) => ({ getHandlerFunction: () => h })),
+      deleteTrigger: (t: { getHandlerFunction: () => string }) => {
+        triggers = triggers.filter((h) => h !== t.getHandlerFunction())
+      },
+      newTrigger: (h: string) => {
+        const b = { timeBased: () => b, everyMinutes: () => b, create: () => void triggers.push(h) }
+        return b
+      },
+    },
     Session: { getActiveUser: () => ({ getEmail: () => 'x@example.com' }) },
     UrlFetchApp: {
       fetch: (url: string) => {
@@ -96,7 +121,8 @@ function load(overrideIds?: { real: string; demo: string }) {
     JSON.parse((ctx.doPost as (e: unknown) => { text: string })({ postData: { contents: JSON.stringify(body) } }).text)
   const get = (parameter: Record<string, string>) =>
     JSON.parse((ctx.doGet as (e: unknown) => { text: string })({ parameter }).text)
-  return { post, get }
+  const run = (fn: string) => (ctx[fn] as () => unknown)()
+  return { post, get, run, ctx }
 }
 
 describe('שרת: אין כתיבה של עסקת דמו לגיליון האמיתי', () => {
@@ -237,4 +263,159 @@ describe('שרת: מחירים חיים ועמודת "מחיר נוכחי"', () 
     expect(writes).toContain(`formula:${REAL}`)
   })
 
+})
+
+// ==================== אבטחה: קוד גישה ====================
+const TOKEN = 'test-token-0123456789abcdef0123456789abcdef'
+
+describe('שרת: קוד גישה (מצב סופי — REQUIRE_TOKEN=true)', () => {
+  let api: ReturnType<typeof load>
+  beforeEach(() => {
+    api = load()
+    props.set('APP_TOKEN', TOKEN)
+    props.set('REQUIRE_TOKEN', 'true')
+  })
+
+  it('POST בלי קוד — נדחה לפני כל גישה לגיליון, בלי כתיבה ובלי מייל', () => {
+    const res = api.post({ action: 'delete', mode: 'real', sheetId: REAL, tradeId: 'T-1' })
+    expect(res.status).toBe('error')
+    expect(res.message).toMatch(/קוד גישה/)
+    expect(opened).toEqual([])
+    expect(writes).toEqual([])
+    expect(mails).toBe(0)
+  })
+
+  it('POST עם קוד שגוי — נדחה', () => {
+    const res = api.post({ action: 'getData', mode: 'real', sheetId: REAL, token: TOKEN.slice(0, -1) + 'x' })
+    expect(res.status).toBe('error')
+    expect(opened).toEqual([])
+  })
+
+  it('POST עם הקוד הנכון — עובד, ומחזיר את הגיליון שממנו קרא', () => {
+    const res = api.post({ action: 'getData', mode: 'demo', sheetId: DEMO, token: TOKEN })
+    expect(res.status).toBe('ok')
+    expect(res.result.mode).toBe('demo')
+    expect(res.result.sheetId).toBe(DEMO)
+    expect(new Set(opened)).toEqual(new Set([DEMO]))
+  })
+
+  it('GET בלי קוד — נדחה (גם עם mode ו-sheetId, וגם scope)', () => {
+    expect(api.get({ mode: 'real', sheetId: REAL }).status).toBe('error')
+    expect(api.get({ scope: 'summary' }).status).toBe('error')
+    expect(api.get({ mode: 'demo', sheetId: DEMO, scope: 'quotes', symbols: 'VTRS' }).status).toBe('error')
+    expect(opened).toEqual([])
+    expect(fetchedUrls).toEqual([])
+  })
+
+  it('קוד חובה אבל לא הוגדר בשרת — הכול נדחה (נכשל "סגור")', () => {
+    props.delete('APP_TOKEN')
+    expect(api.post({ action: 'getData', mode: 'real', sheetId: REAL, token: 'anything' }).status).toBe('error')
+    expect(api.post({ action: 'getData', mode: 'real', sheetId: REAL }).status).toBe('error')
+    expect(opened).toEqual([])
+  })
+
+  it('יומן השינויים לא שומר את קוד הגישה', () => {
+    const res = api.post({ action: 'saveNotes', mode: 'demo', sheetId: DEMO, token: TOKEN, generalNotes: 'x', tradingRules: 'y' })
+    expect(res.status).toBe('ok')
+    expect(appended.length).toBeGreaterThan(0)
+    expect(appended.join('\n')).not.toContain(TOKEN)
+  })
+})
+
+describe('שרת: תקופת מעבר (REQUIRE_TOKEN לא מוגדר)', () => {
+  it('בלי קוד — עדיין מתקבל (כדי שהגרסה הקודמת של האתר לא תישבר), קוד שגוי — נדחה', () => {
+    const api = load()
+    props.set('APP_TOKEN', TOKEN)
+    expect(api.post({ action: 'getData', mode: 'demo', sheetId: DEMO }).status).toBe('ok')
+    expect(api.get({ mode: 'demo', sheetId: DEMO }).sheetId).toBe(DEMO)
+    expect(api.post({ action: 'getData', mode: 'demo', sheetId: DEMO, token: 'wrong' }).status).toBe('error')
+  })
+})
+
+describe('שרת: דלתות אחוריות סגורות', () => {
+  let api: ReturnType<typeof load>
+  beforeEach(() => {
+    api = load()
+  })
+
+  it('scope בלי mode ו-sheetId — לא נופל ליומן האמיתי', () => {
+    for (const scope of ['summary', 'trades', 'capitalFlows']) {
+      expect(api.get({ scope }).status).toBe('error')
+    }
+    expect(opened).toEqual([])
+  })
+
+  it('scope לא מוכר — שגיאה, לא "כל הנתונים"', () => {
+    const res = api.get({ mode: 'real', sheetId: REAL, scope: 'whatever' })
+    expect(res.status).toBe('error')
+    expect(res.trades).toBeUndefined()
+    expect(opened).toEqual([])
+  })
+
+  it('callback (JSONP) — מתעלמים ממנו, התשובה JSON רגיל', () => {
+    const raw = (api.ctx.doGet as (e: unknown) => { text: string })({ parameter: { callback: 'steal', scope: 'summary' } }).text
+    expect(raw.startsWith('steal(')).toBe(false)
+    expect(() => JSON.parse(raw)).not.toThrow()
+  })
+
+  it('setApiKey לא קיים יותר בשרת — המפתח לא משתנה', () => {
+    props.set('twelveDataApiKey', 'original')
+    const res = api.post({ action: 'setApiKey', mode: 'real', sheetId: REAL, apiKey: 'attacker' })
+    expect(res.status).toBe('error')
+    expect(props.get('twelveDataApiKey')).toBe('original')
+  })
+
+  it('תמונות צ׳ארט: רק כתובות TradingView — השרת לא מושך כתובות אחרות', () => {
+    const res = api.post({
+      action: 'fetchChartImages', mode: 'demo', sheetId: DEMO,
+      charts: [
+        { tradeId: 'a', symbol: 'X', chartUrl: 'http://169.254.169.254/latest' },
+        { tradeId: 'b', symbol: 'Y', chartUrl: 'https://evil.example/tradingview.com' },
+        { tradeId: 'c', symbol: 'Z', chartUrl: 'https://tradingview.com.evil.example/x' },
+      ],
+    })
+    expect(res.status).toBe('ok')
+    expect(res.result.images.every((i: { error?: string }) => !!i.error)).toBe(true)
+    expect(fetchedUrls).toEqual([])
+  })
+
+  it('קריאה לא מריצה בדיקות התראה ולא כותבת', () => {
+    let alertRuns = 0
+    vm.runInContext('checkWatchlistAlerts_ = function () { __alert(); }; checkStopLossAlerts_ = function () { __alert(); };', Object.assign(api.ctx, { __alert: () => void (alertRuns += 1) }))
+    api.get({ mode: 'real', sheetId: REAL })
+    api.post({ action: 'getData', mode: 'real', sheetId: REAL })
+    api.post({ action: 'quotes', mode: 'real', sheetId: REAL, symbols: 'VTRS' })
+    expect(alertRuns).toBe(0)
+    expect(writes).toEqual([])
+    expect(mails).toBe(0)
+  })
+})
+
+describe('שרת: התראות מטריגר זמן', () => {
+  it('בשעות המסחר — רץ על היומן האמיתי בלבד', () => {
+    const api = load()
+    nyClock = [2, 11, 0]
+    api.run('runAlertChecks')
+    expect(new Set(opened)).toEqual(new Set([REAL]))
+  })
+
+  it('מחוץ לשעות המסחר (ובסוף שבוע) — לא עושה כלום', () => {
+    const api = load()
+    nyClock = [2, 17, 0]
+    api.run('runAlertChecks')
+    nyClock = [6, 11, 0]
+    api.run('runAlertChecks')
+    nyClock = [2, 9, 29]
+    api.run('runAlertChecks')
+    expect(opened).toEqual([])
+  })
+
+  it('התקנת הטריגר לא יוצרת כפילויות', () => {
+    const api = load()
+    api.run('installAlertTrigger')
+    api.run('installAlertTrigger')
+    expect(triggers).toEqual(['runAlertChecks'])
+    api.run('removeAlertTriggers')
+    expect(triggers).toEqual([])
+  })
 })
