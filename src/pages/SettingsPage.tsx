@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 import { testConnection } from '@/lib/api'
+import { buildSetupLink, loadAppToken, saveAppToken } from '@/lib/appToken'
 import { MODE_LABEL, type AccountMode, type SheetTarget } from '@/lib/accountMode'
 import { exportBackupCsv } from '@/lib/csvExport'
 import { loadTradingViewLayoutId, parseTradingViewLayoutId, saveTradingViewLayoutId } from '@/lib/tradingview'
@@ -28,6 +29,21 @@ export function SettingsPage({ mode, sheetTarget, settings, onSave, positions, e
   const [form, setForm] = React.useState<AppSettings>(settings)
   const [testing, setTesting] = React.useState(false)
   const [tvLayout, setTvLayout] = React.useState(() => loadTradingViewLayoutId())
+  const [appToken, setAppToken] = React.useState(() => loadAppToken())
+  const [showToken, setShowToken] = React.useState(false)
+  const [qr, setQr] = React.useState<string | null>(null)
+
+  async function showDeviceQr() {
+    const saved = loadAppToken()
+    if (!saved || !settings.webAppUrl) {
+      toast('קודם הזן ושמור את כתובת השרת ואת קוד הגישה', 'error')
+      return
+    }
+    const link = buildSetupLink(window.location.href, saved, settings.webAppUrl)
+    // הספרייה נטענת רק כשמבקשים QR, כדי לא להכביד על טעינת האפליקציה
+    const QRCode = (await import('qrcode')).default
+    setQr(await QRCode.toDataURL(link, { margin: 1, width: 240 }))
+  }
   const tvLayoutId = parseTradingViewLayoutId(tvLayout)
 
   function handleExport() {
@@ -47,16 +63,21 @@ export function SettingsPage({ mode, sheetTarget, settings, onSave, positions, e
       return
     }
     saveTradingViewLayoutId(tvLayoutId)
+    saveAppToken(appToken)
     onSave(form)
     toast('ההגדרות נשמרו')
   }
 
   async function handleTest() {
     setTesting(true)
+    // הבדיקה משתמשת בקוד שמוזן כרגע בשדה, גם לפני "שמור הגדרות"
+    const savedToken = loadAppToken()
+    saveAppToken(appToken)
     try {
       const ok = sheetTarget ? await testConnection(form.webAppUrl, sheetTarget) : false
-      toast(ok ? 'החיבור תקין ✅' : 'החיבור נכשל, בדוק את הכתובת', ok ? 'success' : 'error')
+      toast(ok ? 'החיבור תקין ✅' : 'החיבור נכשל, בדוק את הכתובת ואת קוד הגישה', ok ? 'success' : 'error')
     } finally {
+      saveAppToken(savedToken)
       setTesting(false)
     }
   }
@@ -112,6 +133,44 @@ export function SettingsPage({ mode, sheetTarget, settings, onSave, positions, e
               onChange={(e) => setForm({ ...form, webAppUrl: e.target.value })}
               placeholder="https://script.google.com/macros/s/.../exec"
             />
+          </div>
+          <div>
+            <Label>קוד גישה לשרת</Label>
+            <div className="flex gap-2">
+              <Input
+                dir="ltr"
+                type={showToken ? 'text' : 'password'}
+                autoComplete="off"
+                value={appToken}
+                onChange={(e) => setAppToken(e.target.value)}
+                placeholder="הקוד שהגדרת ב-Script Properties (APP_TOKEN)"
+              />
+              <Button variant="outline" type="button" onClick={() => setShowToken((v) => !v)}>
+                {showToken ? 'הסתר' : 'הצג'}
+              </Button>
+            </div>
+            <p className="mt-1 text-xs text-text-muted">
+              נשמר רק בדפדפן הזה. בלי הקוד הנכון השרת לא יקרא ולא יכתוב כלום.
+            </p>
+          </div>
+          <div className="rounded-lg border border-border p-3">
+            <div className="text-sm font-medium text-text">חיבור טלפון או מכשיר נוסף</div>
+            <p className="text-xs text-text-muted">
+              סרוק את הקוד במצלמה של הטלפון — האפליקציה תיפתח מחוברת, בלי להקליד כלום.
+            </p>
+            {qr ? (
+              <div className="mt-2 flex flex-col items-center gap-2">
+                <img src={qr} alt="קוד QR לחיבור מכשיר" className="rounded-md bg-white p-1" width={240} height={240} />
+                <p className="text-center text-xs text-warn">הקוד הזה הוא המפתח לשרת — אל תצלם ואל תשתף אותו.</p>
+                <Button size="sm" variant="outline" type="button" onClick={() => setQr(null)}>
+                  הסתר
+                </Button>
+              </div>
+            ) : (
+              <Button size="sm" variant="secondary" type="button" className="mt-2" onClick={showDeviceQr}>
+                הצג קוד QR
+              </Button>
+            )}
           </div>
           <Button variant="secondary" onClick={handleTest} disabled={testing || !form.webAppUrl}>
             <Wifi className="h-4 w-4" />

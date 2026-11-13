@@ -116,71 +116,99 @@ function hasDemoTag_(tags) {
   return list.some(function (t) { return String(t).trim() === DEMO_TAG_; });
 }
 
+// ==================== אבטחה: קוד גישה ====================
+// הכתובת של ה-Web App פתוחה ("Anyone"), ולכן כל בקשה חייבת לשאת קוד גישה סודי.
+// הקוד נשמר ב-Script Properties בשם APP_TOKEN (מגדירים אותו בעורך: Project Settings ←
+// Script Properties) — הוא לא מופיע בקוד ולא ב-GitHub.
+// REQUIRE_TOKEN: 'true' = חובה (המצב הסופי). כל ערך אחר = תקופת מעבר: בקשה בלי קוד עדיין
+// מתקבלת, אבל קוד שגוי נדחה תמיד. מעבר בין המצבים לא דורש פריסה מחדש — רק שינוי ה-Property.
+
+function tokenRequired_() {
+  return PropertiesService.getScriptProperties().getProperty('REQUIRE_TOKEN') === 'true';
+}
+
+/** השוואה בזמן קבוע (לא חושפת דרך תזמון כמה תווים נכונים) */
+function safeEquals_(a, b) {
+  a = String(a);
+  b = String(b);
+  if (a.length !== b.length) return false;
+  var diff = 0;
+  for (var i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+/**
+ * נקרא לפני כל דבר אחר בכל בקשה — לפני פתיחת גיליון, התראות או מיילים. זורק שגיאה אם:
+ * נשלח קוד שגוי; או שהקוד חובה ולא נשלח; או שהקוד חובה ולא הוגדר בכלל בשרת (נכשל "סגור").
+ */
+function checkToken_(token) {
+  var expected = PropertiesService.getScriptProperties().getProperty('APP_TOKEN');
+  var required = tokenRequired_();
+  var provided = token !== undefined && token !== null && token !== '';
+  if (required && !expected) {
+    throw new Error('השרת לא מוגדר: חסר קוד גישה (APP_TOKEN). לא בוצעה שום פעולה.');
+  }
+  if (provided) {
+    if (!expected || !safeEquals_(token, expected)) {
+      throw new Error('קוד הגישה שגוי. לא בוצעה שום פעולה.');
+    }
+    return;
+  }
+  if (required) {
+    throw new Error('חסר קוד גישה. הזן אותו בהגדרות האפליקציה. לא בוצעה שום פעולה.');
+  }
+}
+
 // ==================== נקודות כניסה ====================
 
+var GET_SCOPES_ = { quotes: true, summary: true, trades: true, trade: true, capitalFlows: true, chart: true };
+
+/**
+ * GET נשאר רק לתאימות (גרסת האפליקציה הקודמת, וכלים חיצוניים). האפליקציה החדשה עובדת רק ב-POST,
+ * כדי שקוד הגישה יישלח בגוף הבקשה ולא בכתובת. קריאה אף פעם לא כותבת לגיליון ולא שולחת מיילים —
+ * בדיקות ההתראה רצות מטריגר זמן (runAlertChecks).
+ */
 function doGet(e) {
   var params = (e && e.parameter) || {};
   var scope = params.scope;
   var payload;
 
   try {
-    if (params.sheetId || params.mode) {
-      bindTarget_(params.mode, params.sheetId);
-    } else if (scope) {
-      // תאימות לאחור: "views" לקריאה בלבד לכלים חיצוניים (Custom GPT) שלא שולחים sheetId —
-      // ממשיכים לקרוא מהיומן האמיתי כמו קודם. האפליקציה עצמה תמיד שולחת sheetId.
-      bindTarget_('real', SHEET_IDS_.real);
-    } else {
-      throw new Error('חסר מזהה גיליון בבקשה. עדכן את האפליקציה לגרסה האחרונה.');
+    checkToken_(params.token);
+    if (scope !== undefined && !GET_SCOPES_[scope]) {
+      throw new Error('scope לא מוכר: ' + scope);
     }
-
-    if (scope === 'quotes') {
-      // מחירים חיים בלבד: לא נוגעים בשום גיליון (לא קוראים, לא כותבים), ולא מריצים בדיקות התראה
-      payload = fetchQuotes_(params.symbols);
-    } else if (!isDemo_()) {
-      checkWatchlistAlerts_(); // בדיקה הזדמנותית בכל טעינה - שולחת מייל אם מניה חצתה יעד
-      checkStopLossAlerts_(); // בדיקה הזדמנותית בכל טעינה - שולחת מייל אם פוזיציה פתוחה חצתה סטופ
-    }
-
-    if (scope === 'quotes') {
-      // כבר טופל למעלה
-    } else if (scope === 'summary') {
-      // תקציר קומפקטי (לשימוש כלים חיצוניים כמו Custom GPT Actions, שיש להם מגבלת גודל תשובה)
-      payload = buildSummaryView_();
-    } else if (scope === 'trades') {
-      payload = buildTradesView_(params);
-    } else if (scope === 'trade') {
-      payload = buildTradeDetailView_(params.tradeId);
-    } else if (scope === 'capitalFlows') {
-      payload = { capitalFlows: readCapitalFlows_() };
-    } else if (scope === 'chart') {
-      payload = fetchChartData_(params.symbol, params.interval);
-    } else {
-      // ברירת מחדל: כל הנתונים המלאים — משמש את האפליקציה עצמה, לא לשנות!
-      payload = {
-        mode: CURRENT_TARGET_.mode,
-        sheetId: CURRENT_TARGET_.sheetId,
-        trades: readPositions_(),
-        executions: readExecutions_(),
-        watchlist: readWatchlist_(),
-        notes: readGeneralNotes_(),
-        settings: getAppSettings_(),
-        capitalFlows: readCapitalFlows_(),
-      };
-    }
+    // אין ברירת מחדל ליומן האמיתי: בלי mode+sheetId תואמים — שגיאה
+    bindTarget_(params.mode, params.sheetId);
+    payload = readView_(scope, params);
   } catch (err) {
     payload = { status: 'error', message: err.message };
   }
 
-  if (params.callback) {
-    return ContentService
-      .createTextOutput(params.callback + '(' + JSON.stringify(payload) + ')')
-      .setMimeType(ContentService.MimeType.JAVASCRIPT);
-  }
-
+  // בכוונה בלי JSONP (פרמטר callback): התשובה תמיד JSON
   return ContentService
     .createTextOutput(JSON.stringify(payload))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+/** קריאה בלבד, לפי scope. ללא scope: כל הנתונים (משמש את האפליקציה) */
+function readView_(scope, params) {
+  if (scope === 'quotes') return fetchQuotes_(params.symbols);
+  if (scope === 'summary') return buildSummaryView_();
+  if (scope === 'trades') return buildTradesView_(params);
+  if (scope === 'trade') return buildTradeDetailView_(params.tradeId);
+  if (scope === 'capitalFlows') return { capitalFlows: readCapitalFlows_() };
+  if (scope === 'chart') return fetchChartData_(params.symbol, params.interval);
+  return {
+    mode: CURRENT_TARGET_.mode,
+    sheetId: CURRENT_TARGET_.sheetId,
+    trades: readPositions_(),
+    executions: readExecutions_(),
+    watchlist: readWatchlist_(),
+    notes: readGeneralNotes_(),
+    settings: getAppSettings_(),
+    capitalFlows: readCapitalFlows_(),
+  };
 }
 
 // ==================== "views" קומפקטיים לצריכה חיצונית (Custom GPT Actions וכד') ====================
@@ -305,7 +333,16 @@ function buildTradeDetailView_(tradeId) {
 }
 
 /** מחלץ מעמוד ה-snapshot של TradingView את קישור התמונה הישיר (og:image) */
+/** רק https לכתובות של TradingView — השרת לא מושך כתובות שרירותיות */
+function isTradingViewUrl_(url) {
+  var m = /^https:\/\/([^\/?#:]+)(?:[\/?#]|$)/i.exec(String(url || ''));
+  if (!m) return false;
+  var host = m[1].toLowerCase();
+  return host === 'tradingview.com' || /\.tradingview\.com$/.test(host);
+}
+
 function resolveChartImageUrl_(chartUrl) {
+  if (!isTradingViewUrl_(chartUrl)) return null;
   try {
     var resp = UrlFetchApp.fetch(chartUrl, { muteHttpExceptions: true });
     if (resp.getResponseCode() !== 200) return null;
@@ -331,8 +368,17 @@ function doPost(e) {
     var body = JSON.parse(e.postData.contents);
     var isWrite = !!WRITE_ACTIONS_[body.action];
 
-    // לפני כל דבר אחר: לאיזה גיליון הבקשה פונה. בקשה בלי mode+sheetId תואמים נדחית כאן.
+    // לפני כל דבר אחר: קוד גישה, ואז לאיזה גיליון הבקשה פונה
+    checkToken_(body.token);
     bindTarget_(body.mode, body.sheetId);
+
+    // פעולות קריאה ב-POST (האפליקציה): לא כותבות כלום ולא מריצות התראות
+    if (body.action === 'getData' || body.action === 'quotes') {
+      var readResult = body.action === 'quotes' ? fetchQuotes_(body.symbols) : readView_(undefined, {});
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: 'ok', result: readResult }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
     // הגנה כפולה: תגית "דמו" לא נכתבת לעולם ליומן האמיתי
     if (isWrite && !isDemo_() && hasDemoTag_(body.tags)) {
       throw new Error('נחסם: ניסיון לכתוב עסקה עם תגית "דמו" ליומן האמיתי. לא בוצעה שום פעולה.');
@@ -394,16 +440,13 @@ function doPost(e) {
       case 'fetchChartImages':
         result = handleFetchChartImages_(body);
         break;
-      case 'setApiKey':
-        result = handleSetApiKey_(body);
-        break;
       case 'fixTimestamps':
         result = handleFixTimestamps_(body);
         break;
       default:
         throw new Error('פעולה לא ידועה: ' + body.action);
     }
-    ensureStatsSheet_();
+    if (isWrite) ensureStatsSheet_();
 
     if (cacheKey) {
       // עד 6 שעות (המקסימום של CacheService) — מספיק בהחלט כדי לתפוס retry כפול
@@ -1068,9 +1111,17 @@ function handleFetchChartImages_(body) {
   for (var i = 0; i < limited.length; i++) {
     var item = limited[i];
     try {
+      if (!isTradingViewUrl_(item.chartUrl)) {
+        results.push({ tradeId: item.tradeId, symbol: item.symbol, error: 'רק קישורי TradingView נתמכים' });
+        continue;
+      }
       var imageUrl = resolveChartImageUrl_(item.chartUrl);
       if (!imageUrl) {
         results.push({ tradeId: item.tradeId, symbol: item.symbol, error: 'לא נמצאה תמונה בעמוד הצ׳ארט' });
+        continue;
+      }
+      if (!isTradingViewUrl_(imageUrl)) {
+        results.push({ tradeId: item.tradeId, symbol: item.symbol, error: 'כתובת תמונה לא מורשית' });
         continue;
       }
       var imgResp = UrlFetchApp.fetch(imageUrl, { muteHttpExceptions: true });
@@ -1202,7 +1253,7 @@ function logAudit_(action, body, result) {
     var entity = body.tradeId || body.watchId || body.flowId || '';
     var bodyForLog = {};
     for (var key in body) {
-      if (key !== 'idempotencyKey') bodyForLog[key] = body[key];
+      if (key !== 'idempotencyKey' && key !== 'token') bodyForLog[key] = body[key];
     }
     sheet.appendRow([
       new Date().toISOString(),
@@ -1270,8 +1321,8 @@ function handleDeleteCapitalFlow_(body) {
 
 // ==================== נתוני שוק (Twelve Data) ====================
 // המפתח נשמר ב-Script Properties, בדיוק כמו שאר ההגדרות — אבל בכוונה *לא* נחשף חזרה
-// דרך getAppSettings_/doGet, ובכוונה *לא* עובר דרך logAudit_ (ראה doPost: 'setApiKey'
-// לא ברשימת WRITE_ACTIONS_), כדי שמפתח ה-API לא ייחשף בשום תשובת JSON או ביומן השינויים.
+// דרך getAppSettings_/doGet, ובכוונה אין פעולה בשרת שמגדירה אותו — רק בעורך (Script Properties
+// ← twelveDataApiKey). כך המפתח לא נחשף בשום תשובה, ואי אפשר להחליף אותו מבחוץ.
 
 var TWELVE_DATA_BASE_URL = 'https://api.twelvedata.com';
 
@@ -1347,11 +1398,8 @@ function getMarketDataApiKey_() {
   return PropertiesService.getScriptProperties().getProperty('twelveDataApiKey');
 }
 
-function handleSetApiKey_(body) {
-  if (!body.apiKey) throw new Error('apiKey חסר');
-  PropertiesService.getScriptProperties().setProperty('twelveDataApiKey', body.apiKey);
-  return { ok: true };
-}
+// מפתח Twelve Data מוגדר רק בעורך: Project Settings ← Script Properties ← twelveDataApiKey.
+// בכוונה אין פעולת setApiKey בשרת — אחרת כל מי שיש לו את הכתובת יכול להחליף אותו.
 
 /**
  * מביאה נרות היסטוריים מ-Twelve Data ומחשבת מהם ממוצעים נעים/ATR/נפח יחסי/שיא-שפל
@@ -1361,7 +1409,7 @@ function handleSetApiKey_(body) {
 function fetchChartData_(symbol, interval) {
   if (!symbol) throw new Error('symbol חסר');
   var apiKey = getMarketDataApiKey_();
-  if (!apiKey) throw new Error('לא הוגדר מפתח API לנתוני שוק — יש להגדיר אותו קודם (action: setApiKey)');
+  if (!apiKey) throw new Error('לא הוגדר מפתח API לנתוני שוק (twelveDataApiKey ב-Script Properties)');
   interval = interval || '1day';
 
   var url = TWELVE_DATA_BASE_URL + '/time_series?symbol=' + encodeURIComponent(symbol) +
@@ -1702,6 +1750,38 @@ function ensureStatsSheet_() {
   if (isNew) {
     ss.setActiveSheet(posSheet); // לא נשארים על לשונית הסטטיסטיקה אחרי יצירה ראשונה
   }
+}
+
+// ==================== התראות מטריגר זמן ====================
+// בדיקות ההתראה (מחיר יעד ברשימת המעקב, חציית סטופ) רצות מטריגר זמן ולא מבקשות קריאה —
+// כך קריאה אף פעם לא משנה את הגיליון ולא שולחת מייל. רק על היומן האמיתי.
+// התקנה חד-פעמית: בעורך בוחרים installAlertTrigger ← Run, ומאשרים הרשאה.
+
+function isUsMarketHours_(now) {
+  now = now || new Date();
+  var day = Number(Utilities.formatDate(now, 'America/New_York', 'u')); // 1=שני ... 7=ראשון
+  var hm = Number(Utilities.formatDate(now, 'America/New_York', 'HH')) * 60 +
+    Number(Utilities.formatDate(now, 'America/New_York', 'mm'));
+  return day >= 1 && day <= 5 && hm >= 9 * 60 + 30 && hm < 16 * 60;
+}
+
+/** מורץ ע"י הטריגר כל 15 דקות; מחוץ לשעות המסחר בארה"ב — לא עושה כלום */
+function runAlertChecks() {
+  if (!isUsMarketHours_()) return;
+  bindTarget_('real', SHEET_IDS_.real);
+  checkWatchlistAlerts_();
+  checkStopLossAlerts_();
+}
+
+function installAlertTrigger() {
+  removeAlertTriggers();
+  ScriptApp.newTrigger('runAlertChecks').timeBased().everyMinutes(15).create();
+}
+
+function removeAlertTriggers() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'runAlertChecks') ScriptApp.deleteTrigger(t);
+  });
 }
 
 /** קריאה ידנית לרענון הגדרות הון התחלתי מ-Script Properties, אופציונלי */

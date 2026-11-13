@@ -1,5 +1,6 @@
 import type { Execution, Position, WatchlistItem } from '@/types'
 import { assertValidTarget, hasDemoTag, SheetGuardError, type SheetTarget } from '@/lib/accountMode'
+import { loadAppToken } from '@/lib/appToken'
 
 export interface GeneralNotes {
   generalNotes: string
@@ -64,10 +65,27 @@ export function __resetVerifiedTargets() {
 }
 
 /**
- * שולח פעולה (POST) אל ה-Google Apps Script Web App.
- * משתמשים ב-Content-Type: text/plain כדי להימנע מ-CORS preflight,
- * ה-Apps Script קורא את e.postData.contents ומפענח JSON בעצמו.
+ * כל התקשורת עם השרת היא POST: קוד הגישה, המצב ומזהה הגיליון נשלחים בגוף הבקשה (לא בכתובת).
+ * Content-Type: text/plain כדי להימנע מ-CORS preflight; ה-Apps Script מפענח את ה-JSON בעצמו.
  */
+async function rawPost(webAppUrl: string, t: SheetTarget, payload: Record<string, unknown>): Promise<unknown> {
+  const token = loadAppToken()
+  const res = await fetch(webAppUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ ...payload, mode: t.mode, sheetId: t.sheetId, ...(token ? { token } : {}) }),
+  })
+  if (!res.ok) {
+    throw new Error(`שגיאה בתקשורת עם השרת (${res.status})`)
+  }
+  const data = await res.json().catch(() => null)
+  if (!data || data.status !== 'ok') {
+    throw new Error(data?.message || 'הפעולה נכשלה בשרת')
+  }
+  return data.result
+}
+
+/** שולח פעולת כתיבה לשרת */
 export async function postAction(webAppUrl: string, target: SheetTarget, payload: ActionPayload): Promise<void> {
   await postActionWithResult(webAppUrl, target, payload)
 }
@@ -88,22 +106,7 @@ export async function postActionWithResult<T = unknown>(
       'השרת עוד לא אישר שהוא מחובר לגיליון הנכון, ולכן הכתיבה נחסמה. רענן את הנתונים, ואם זה חוזר — פרוס את הגרסה החדשה של הסקריפט.',
     )
   }
-
-  const res = await fetch(webAppUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ ...payload, mode: t.mode, sheetId: t.sheetId }),
-  })
-
-  if (!res.ok) {
-    throw new Error(`שגיאה בשליחת הפעולה לשרת (${res.status})`)
-  }
-
-  const data = await res.json().catch(() => null)
-  if (data && data.status && data.status !== 'ok') {
-    throw new Error(data.message || 'הפעולה נכשלה בשרת')
-  }
-  return data?.result as T
+  return (await rawPost(webAppUrl, t, payload)) as T
 }
 
 /** מושך תמונות צ'ארט אמיתיות (לא רק קישורים) עבור עסקאות עם קישור צ'ארט, דרך ה-Backend */
@@ -115,28 +118,33 @@ export async function fetchChartImages(
   return postActionWithResult<FetchChartImagesResponse>(webAppUrl, target, { action: 'fetchChartImages', charts })
 }
 
-/** משיכת כל הנתונים (GET) מה-Web App, מהגיליון של היעד בלבד */
+interface RawData {
+  mode?: string
+  sheetId?: string
+  trades?: Position[]
+  executions?: Execution[]
+  watchlist?: WatchlistItem[]
+  notes?: GeneralNotes
+  settings?: RemoteSettings
+}
+
+/** משיכת כל הנתונים מהשרת, מהגיליון של היעד בלבד */
 export async function fetchData(webAppUrl: string, target: SheetTarget): Promise<GetDataResponse> {
   if (!webAppUrl) throw new Error('לא הוגדרה כתובת Web App. עבור להגדרות והזן כתובת.')
   const t = assertValidTarget(target)
 
-  const url = new URL(webAppUrl)
-  url.searchParams.set('mode', t.mode)
-  url.searchParams.set('sheetId', t.sheetId)
-  const res = await fetch(url.toString(), { method: 'GET' })
-  if (!res.ok) {
-    throw new Error(`שגיאה במשיכת נתונים מהשרת (${res.status})`)
+  let data: RawData | null
+  try {
+    data = (await rawPost(webAppUrl, t, { action: 'getData' })) as RawData | null
+  } catch (err) {
+    verifiedTargets.delete(targetKey(webAppUrl, t))
+    throw err
   }
-  const data = await res.json()
-  if (data && data.status === 'error') {
-    throw new Error(data.message || 'השרת החזיר שגיאה')
-  }
-  // השרת חייב להחזיר במפורש את הגיליון שממנו קרא. שרת ישן (שלא מכיר מצב דמו) לא מחזיר —
-  // ואז אסור להציג את הנתונים, כי הם מהגיליון האמיתי ולא מזה שביקשנו
+  // השרת חייב להחזיר במפורש את הגיליון שממנו קרא — אחרת אסור להציג את הנתונים
   if (data?.sheetId !== t.sheetId || data?.mode !== t.mode) {
     verifiedTargets.delete(targetKey(webAppUrl, t))
     throw new SheetGuardError(
-      'השרת לא אישר שהנתונים הגיעו מהגיליון המבוקש (ייתכן שהסקריפט עוד לא עודכן לגרסה שתומכת במצב דמו). לא מוצג ולא נכתב כלום.',
+      'השרת לא אישר שהנתונים הגיעו מהגיליון המבוקש (ייתכן שהסקריפט עוד לא עודכן לגרסה האחרונה). לא מוצג ולא נכתב כלום.',
     )
   }
   verifiedTargets.add(targetKey(webAppUrl, t))
@@ -177,15 +185,7 @@ export interface QuotesResponse {
 export async function fetchQuotes(webAppUrl: string, target: SheetTarget, symbols: string[]): Promise<QuotesResponse> {
   if (!webAppUrl) throw new Error('לא הוגדרה כתובת Web App.')
   const t = assertValidTarget(target)
-  const url = new URL(webAppUrl)
-  url.searchParams.set('mode', t.mode)
-  url.searchParams.set('sheetId', t.sheetId)
-  url.searchParams.set('scope', 'quotes')
-  url.searchParams.set('symbols', symbols.join(','))
-  const res = await fetch(url.toString(), { method: 'GET' })
-  if (!res.ok) throw new Error(`שגיאה במשיכת מחירים (${res.status})`)
-  const data = await res.json()
-  if (data?.status === 'error') throw new Error(data.message || 'שגיאה במשיכת מחירים')
+  const data = (await rawPost(webAppUrl, t, { action: 'quotes', symbols: symbols.join(',') })) as Partial<QuotesResponse> | null
   if (!data || typeof data.quotes !== 'object') {
     throw new Error('השרת לא מחזיר מחירים חיים (ייתכן שהסקריפט עוד לא עודכן לגרסה האחרונה)')
   }

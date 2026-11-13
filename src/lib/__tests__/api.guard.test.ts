@@ -3,7 +3,8 @@
  * כל הרשת מדומה (fetch mock) — הבדיקות לא נוגעות באף גיליון אמיתי.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { __resetVerifiedTargets, fetchData, postAction } from '@/lib/api'
+import { __resetVerifiedTargets, fetchData, fetchQuotes, postAction } from '@/lib/api'
+import { saveAppToken } from '@/lib/appToken'
 import { assertValidTarget, resolveSheetTarget, SHEET_IDS, SheetGuardError } from '@/lib/accountMode'
 
 const URL_ = 'https://script.google.com/macros/s/TEST/exec'
@@ -29,9 +30,10 @@ beforeEach(() => {
       const method = init?.method ?? 'GET'
       const body = init?.body ? JSON.parse(String(init.body)) : null
       calls.push({ url: input, method, body })
-      if (method === 'GET') {
-        const u = new URL(input)
-        return okJson(serverEcho(u.searchParams.get('mode'), u.searchParams.get('sheetId')))
+      // שרת מדומה: getData מחזיר את מה ש-serverEcho מחליט; שגיאה מוחזרת כמו שהיא
+      if (body?.action === 'getData') {
+        const echo = serverEcho((body.mode as string) ?? null, (body.sheetId as string) ?? null)
+        return okJson(echo.status === 'error' ? echo : { status: 'ok', result: echo })
       }
       return okJson({ status: 'ok', result: {} })
     }),
@@ -42,8 +44,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-const allSentSheetIds = () =>
-  calls.map((c) => (c.method === 'GET' ? new URL(c.url).searchParams.get('sheetId') : (c.body?.sheetId as string)))
+const allSentSheetIds = () => calls.map((c) => (c.body?.sheetId as string | undefined) ?? new URL(c.url).searchParams.get('sheetId'))
 
 describe('אין כתיבה של עסקת דמו לגיליון האמיתי', () => {
   it('במצב דמו, קריאה וכתיבה נשלחות עם מזהה גיליון הדמו בלבד', async () => {
@@ -91,8 +92,8 @@ describe('אין כתיבה של עסקת דמו לגיליון האמיתי', (
     await expect(postAction(URL_, demo, { action: 'open', tradeId: 'T-2', symbol: 'VTRS' })).rejects.toThrow(
       SheetGuardError,
     )
-    // רק ה-GET יצא; שום POST לא נשלח
-    expect(calls.map((c) => c.method)).toEqual(['GET'])
+    // רק הקריאה יצאה; שום פעולת כתיבה לא נשלחה
+    expect(calls.map((c) => c.body?.action)).toEqual(['getData'])
   })
 
   it('שרת שמחזיר את הגיליון האמיתי כשביקשו דמו — נדחה', async () => {
@@ -113,7 +114,7 @@ describe('אין מעבר אוטומטי מגיליון אחד לשני', () => 
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: string, init?: RequestInit) => {
-        calls.push({ url: input, method: init?.method ?? 'GET', body: null })
+        calls.push({ url: input, method: init?.method ?? 'GET', body: init?.body ? JSON.parse(String(init.body)) : null })
         throw new TypeError('network down')
       }),
     )
@@ -138,7 +139,7 @@ describe('אין מעבר אוטומטי מגיליון אחד לשני', () => 
     await expect(postAction(URL_, resolveSheetTarget('demo'), { action: 'delete', tradeId: 'T-1' })).rejects.toThrow(
       SheetGuardError,
     )
-    expect(calls.filter((c) => c.method === 'POST')).toHaveLength(0)
+    expect(calls.filter((c) => c.body?.action === 'delete')).toHaveLength(0)
   })
 })
 
@@ -160,5 +161,43 @@ describe('תקינות המזהים', () => {
     const gs = readFileSync(new URL('../../../google-apps-script.gs', import.meta.url), 'utf8')
     expect(gs).toContain(`real: '${REAL}'`)
     expect(gs).toContain(`demo: '${DEMO}'`)
+  })
+})
+
+describe('קוד גישה', () => {
+  const store = new Map<string, string>()
+  beforeEach(() => {
+    store.clear()
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    })
+  })
+
+  it('נשלח בגוף בקשת POST בכל קריאה וכתיבה — ואף פעם לא בכתובת', async () => {
+    saveAppToken('secret-token-123')
+    const demo = resolveSheetTarget('demo')
+    await fetchData(URL_, demo)
+    await postAction(URL_, demo, { action: 'saveNotes', generalNotes: 'x' })
+    await fetchQuotes(URL_, demo, ['VTRS']).catch(() => {})
+    expect(calls.length).toBe(3)
+    for (const c of calls) {
+      expect(c.method).toBe('POST')
+      expect(c.body?.token).toBe('secret-token-123')
+      expect(c.url).not.toContain('secret-token-123')
+      expect(c.url).toBe(URL_)
+    }
+  })
+
+  it('בלי קוד שמור — לא נשלח שדה token בכלל', async () => {
+    await fetchData(URL_, resolveSheetTarget('demo'))
+    expect(calls[0].body && 'token' in calls[0].body).toBe(false)
+  })
+
+  it('שגיאת קוד מהשרת מוצגת כמו שהיא, בלי ניסיון חוזר ובלי מעבר לגיליון אחר', async () => {
+    serverEcho = () => ({ status: 'error', message: 'קוד הגישה שגוי. לא בוצעה שום פעולה.' })
+    await expect(fetchData(URL_, resolveSheetTarget('real'))).rejects.toThrow('קוד הגישה שגוי')
+    expect(calls).toHaveLength(1)
   })
 })

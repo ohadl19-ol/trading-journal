@@ -8,10 +8,21 @@
 
 export type AccountMode = 'real' | 'demo'
 
-export const SHEET_IDS: Record<AccountMode, string> = {
+const PRODUCTION_SHEET_IDS: Record<AccountMode, string> = {
   real: '1szzRyKfEZ-4CCgyWsr4NDzLJK_G-kDVpzB62EwYvA30',
   demo: '1GEaDNScc-dqNFi4YyuuB16juPBE-y3XXon1Wq7MpPBs',
 }
+
+/**
+ * סביבת בדיקה: הרצה מקומית עם VITE_TEST_SHEET_ID_REAL ו-VITE_TEST_SHEET_ID_DEMO (שני גיליונות
+ * פיקטיביים) מחליפה את שני המזהים יחד. בבנייה לאתר החי המשתנים לא מוגדרים, ולכן תמיד המזהים האמיתיים.
+ */
+const env = (import.meta as { env?: Record<string, string | undefined> }).env ?? {}
+export const IS_TEST_ENVIRONMENT = !!(env.VITE_TEST_SHEET_ID_REAL && env.VITE_TEST_SHEET_ID_DEMO)
+
+export const SHEET_IDS: Record<AccountMode, string> = IS_TEST_ENVIRONMENT
+  ? { real: env.VITE_TEST_SHEET_ID_REAL!, demo: env.VITE_TEST_SHEET_ID_DEMO! }
+  : PRODUCTION_SHEET_IDS
 
 export const DEMO_TAG = 'דמו'
 export const DEMO_DEFAULT_INITIAL_CAPITAL = 3000
